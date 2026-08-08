@@ -7,6 +7,7 @@ Pagina web statica e gratuita per cercare possibili transiti della Stazione Spaz
 - coordinate manuali o geolocalizzazione del browser;
 - raggio di ricerca configurabile fino a 20 km;
 - TLE aggiornati della ISS da CelesTrak;
+- aggiornamento automatico dell'orbita ogni due ore tramite GitHub Actions;
 - propagazione SGP4 nel browser con `satellite.js`;
 - posizione topocentrica della Luna con Astronomy Engine;
 - ora locale, altezza, azimut, ascensione retta e declinazione;
@@ -17,7 +18,7 @@ Pagina web statica e gratuita per cercare possibili transiti della Stazione Spaz
 ## Pubblicazione con GitHub Pages
 
 1. Creare un repository pubblico chiamato `ISS-Lunar-Transit-Finder`.
-2. Caricare nella radice `index.html`, `styles.css`, `app.js`, `README.md` e `LICENSE`.
+2. Caricare l'intero contenuto del progetto, incluse le cartelle `data` e `.github`.
 3. Aprire **Settings → Pages**.
 4. In **Build and deployment**, scegliere **Deploy from a branch**.
 5. Selezionare branch `main`, cartella `/ (root)` e premere **Save**.
