@@ -18,3 +18,20 @@ Pagina web statica e gratuita per cercare possibili transiti della Stazione Spaz
 
 1. Creare un repository pubblico chiamato `ISS-Lunar-Transit-Finder`.
 2. Caricare nella radice `index.html`, `styles.css`, `app.js`, `README.md` e `LICENSE`.
+3. Aprire **Settings → Pages**.
+4. In **Build and deployment**, scegliere **Deploy from a branch**.
+5. Selezionare branch `main`, cartella `/ (root)` e premere **Save**.
+
+La pagina sarà disponibile all'indirizzo:
+
+`https://TUO-USERNAME.github.io/ISS-Lunar-Transit-Finder/`
+
+## Avvertenza importante
+
+Una previsione a 30 giorni serve per pianificare. Aggiornare sempre il calcolo 48 ore prima e il giorno stesso dell'evento. Le manovre orbitali e la resistenza atmosferica possono spostare la fascia del transito.
+
+Questo progetto non garantisce l'osservabilità e non sostituisce una verifica con un secondo servizio indipendente.
+
+## Licenza
+
+MIT.
