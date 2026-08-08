@@ -2,7 +2,7 @@ import * as satellite from 'https://cdn.jsdelivr.net/npm/satellite.js@6.0.1/+esm
 import * as Astronomy from 'https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/+esm';
 
 const $ = id => document.getElementById(id);
-const TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE';
+const TLE_URL = './data/iss.tle';
 const SEARCH_DAYS = 30;
 const MOON_RADIUS_DEG = 0.2725;
 let cancelled = false;
@@ -65,9 +65,9 @@ function readObserver(){
 
 async function fetchTle(){
   let response;
-  try { response = await fetch(TLE_URL, {cache:'no-store'}); }
-  catch { throw new Error('Non riesco a raggiungere CelesTrak. Controlla la connessione e riprova.'); }
-  if (!response.ok) throw new Error(`CelesTrak non disponibile (errore ${response.status}).`);
+  try { response = await fetch(`${TLE_URL}?v=${Date.now()}`, {cache:'no-store'}); }
+  catch { throw new Error('Non riesco a scaricare l’orbita ISS aggiornata. Controlla la connessione e riprova.'); }
+  if (!response.ok) throw new Error(`Dati orbitali ISS non disponibili (errore ${response.status}).`);
   const lines = (await response.text()).trim().split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   const line1 = lines.find(x=>x.startsWith('1 '));
   const line2 = lines.find(x=>x.startsWith('2 '));
