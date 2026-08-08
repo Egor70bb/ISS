@@ -6,6 +6,7 @@
   <meta name="description" content="Previsione gratuita dei transiti della ISS davanti alla Luna.">
   <title>ISS Lunar Transit Finder</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="dwarf.css">
 </head>
 <body>
   <header class="hero">
@@ -71,6 +72,31 @@
       <div id="results" class="results"></div>
     </section>
 
+    <section class="panel dwarf-panel">
+      <div class="section-title"><div><span class="step">3</span><h2>Scheda DWARF 3</h2></div><span class="scope-badge">TRANSITO LUNARE</span></div>
+      <div class="dwarf-layout">
+        <div class="dwarf-main">
+          <h3>Configurazione di base consigliata</h3>
+          <div class="settings-grid">
+            <div><span>Ottica</span><strong>Teleobiettivo</strong></div>
+            <div><span>Filtro</span><strong>VIS</strong></div>
+            <div><span>Modalità</span><strong>Video</strong></div>
+            <div><span>Formato</span><strong>1080p · 60 fps</strong></div>
+            <div><span>Tracking</span><strong>Moon Track</strong></div>
+            <div><span>Gain iniziale</span><strong>0</strong></div>
+          </div>
+          <p class="source-note">Impostazioni di base ricavate dalla documentazione DWARFLAB. La scheda dentro ogni risultato adatta esposizione e tempi alla Luna dell’evento.</p>
+        </div>
+        <ol class="checklist">
+          <li><span>1</span><div><strong>Treppiede stabile e livellato</strong><small>Corpo entro circa 3° dal piano; logo e obiettivi rivolti verso la Luna.</small></div></li>
+          <li><span>2</span><div><strong>Centra la Luna</strong><small>Usa la doppia visuale, passa al teleobiettivo e avvia AF.</small></div></li>
+          <li><span>3</span><div><strong>Attiva Moon Track</strong><small>Verifica che il disco rimanga interamente nell’inquadratura.</small></div></li>
+          <li><span>4</span><div><strong>Registra in anticipo</strong><small>Avvia almeno 45 secondi prima: il transito non è gestibile a reazione.</small></div></li>
+        </ol>
+      </div>
+      <div class="practice-tip"><strong>Prova generale:</strong> esegui una registrazione di 60–90 secondi sulla Luna almeno una sera prima, usando le stesse impostazioni.</div>
+    </section>
+
     <section class="notice">
       <strong>Precisione della previsione</strong>
       <p>I risultati oltre 14 giorni sono preliminari. Per fotografare, aggiorna il calcolo 48 ore prima e ancora il giorno dell’evento: manovre e resistenza atmosferica possono spostare la fascia del transito.</p>
@@ -79,7 +105,7 @@
 
   <footer>
     <p>100% gratuito · Nessun account · Nessuna coordinata salvata</p>
-    <p class="credits">Dati orbitali: CelesTrak · SGP4: satellite.js · Effemeridi: Astronomy Engine</p>
+    <p class="credits">Dati orbitali: CelesTrak · SGP4: satellite.js · Effemeridi: Astronomy Engine · Ripresa: documentazione DWARFLAB</p>
   </footer>
 
   <script type="module" src="app.js"></script>
