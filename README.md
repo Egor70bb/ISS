@@ -13,6 +13,7 @@ Pagina web statica e gratuita per cercare possibili transiti della Stazione Spaz
 - ora locale, altezza, azimut, ascensione retta e declinazione;
 - coordinate del punto di osservazione migliore;
 - collegamento Google Maps ed esportazione calendario;
+- scheda DWARF 3 generale e impostazioni adattate a ogni transito;
 - nessun server, account o API a pagamento.
 
 ## Pubblicazione con GitHub Pages
