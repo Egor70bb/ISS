@@ -143,7 +143,9 @@ function geometry(satrec,date,lat,lon,heightM){
   const eq=Astronomy.Equator(Astronomy.Body.Moon,date,obs,true,true);
   const hor=Astronomy.Horizon(date,obs,eq.ra,eq.dec,'normal');
   const sep=angularSeparation(issAlt,issAz,hor.altitude,hor.azimuth);
-  return {time:date.getTime(),sep,issAlt,issAz,moonAlt:hor.altitude,moonAz:hor.azimuth,ra:eq.ra,dec:eq.dec,distanceKm:Math.sqrt(ecf.x*ecf.x+ecf.y*ecf.y+ecf.z*ecf.z)};
+  const moonPhase=Astronomy.MoonPhase(date);
+  const moonIllumination=(1-Math.cos(moonPhase*Math.PI/180))/2*100;
+  return {time:date.getTime(),sep,issAlt,issAz,moonAlt:hor.altitude,moonAz:hor.azimuth,ra:eq.ra,dec:eq.dec,moonIllumination,distanceKm:Math.sqrt(ecf.x*ecf.x+ecf.y*ecf.y+ecf.z*ecf.z)};
 }
 
 function refineTime(satrec,observer,from,to,step){
@@ -204,7 +206,15 @@ function eventCard(e,index){
   const time=date.toLocaleString('it-IT',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short'});
   const maps=`https://www.google.com/maps/search/?api=1&query=${e.lat.toFixed(6)},${e.lon.toFixed(6)}`;
   const calendar=icsLink(e,index);
-  return `<article class="event"><div class="event-head"><div><h3>Transito lunare #${index+1}</h3><div class="event-time">${capitalize(time)}</div></div><span class="badge ${confirm?'confirm':'plan'}">${confirm?'DA CONFERMARE 24 H PRIMA':'PRELIMINARE'}</span></div><div class="metrics"><div class="metric"><span>Distanza</span><strong>${e.offsetKm.toFixed(2)} km</strong></div><div class="metric"><span>Altezza Luna</span><strong>${e.moonAlt.toFixed(1)}°</strong></div><div class="metric"><span>Azimut</span><strong>${e.moonAz.toFixed(1)}°</strong></div><div class="metric"><span>Durata stimata</span><strong>${e.durationEstimate.toFixed(2)} s</strong></div><div class="metric"><span>Declinazione</span><strong>${signed(e.dec)}°</strong></div><div class="metric"><span>Ascensione retta</span><strong>${e.ra.toFixed(3)} h</strong></div><div class="metric"><span>Coordinate migliori</span><strong>${e.lat.toFixed(5)}, ${e.lon.toFixed(5)}</strong></div><div class="metric"><span>Distanza dal centro</span><strong>${e.sep.toFixed(3)}°</strong></div></div><div class="event-actions"><a href="${maps}" target="_blank" rel="noopener">Apri punto su Google Maps</a><a href="${calendar}" download="transito-iss-luna-${index+1}.ics">Aggiungi al calendario</a></div></article>`;
+  return `<article class="event"><div class="event-head"><div><h3>Transito lunare #${index+1}</h3><div class="event-time">${capitalize(time)}</div></div><span class="badge ${confirm?'confirm':'plan'}">${confirm?'DA CONFERMARE 24 H PRIMA':'PRELIMINARE'}</span></div><div class="metrics"><div class="metric"><span>Distanza</span><strong>${e.offsetKm.toFixed(2)} km</strong></div><div class="metric"><span>Altezza Luna</span><strong>${e.moonAlt.toFixed(1)}°</strong></div><div class="metric"><span>Azimut</span><strong>${e.moonAz.toFixed(1)}°</strong></div><div class="metric"><span>Illuminazione Luna</span><strong>${e.moonIllumination.toFixed(0)}%</strong></div><div class="metric"><span>Durata stimata</span><strong>${e.durationEstimate.toFixed(2)} s</strong></div><div class="metric"><span>Declinazione</span><strong>${signed(e.dec)}°</strong></div><div class="metric"><span>Ascensione retta</span><strong>${e.ra.toFixed(3)} h</strong></div><div class="metric"><span>Coordinate migliori</span><strong>${e.lat.toFixed(5)}, ${e.lon.toFixed(5)}</strong></div><div class="metric"><span>Distanza dal centro</span><strong>${e.sep.toFixed(3)}°</strong></div></div><div class="event-actions"><a href="${maps}" target="_blank" rel="noopener">Apri punto su Google Maps</a><a href="${calendar}" download="transito-iss-luna-${index+1}.ics">Aggiungi al calendario</a></div>${dwarfEventCard(e)}</article>`;
+}
+
+function dwarfEventCard(e){
+  const bright=e.moonIllumination>=70, medium=e.moonIllumination>=30;
+  const exposure=bright?'1/250 s':medium?'1/125 s':'1/60 s';
+  const quality=e.moonAlt>=20&&e.moonIllumination>=30?'Buona':e.moonAlt>=10?'Discreta':'Difficile';
+  const qualityClass=quality==='Buona'?'':'quality-low';
+  return `<details class="dwarf-event"><summary>Scheda di ripresa DWARF 3 per questo evento</summary><div class="capture-content"><div class="capture-grid"><div><span>Video</span><strong>1080p · 60 fps</strong></div><div><span>Esposizione iniziale</span><strong>${exposure}</strong></div><div><span>Gain</span><strong>0</strong></div><div><span>Filtro</span><strong>VIS</strong></div><div><span>Avvio video</span><strong>−45 secondi</strong></div><div><span>Fine video</span><strong>+20 secondi</strong></div><div><span>Moon Track</span><strong>Attivo</strong></div><div><span>Condizione stimata</span><strong class="${qualityClass}">${quality}</strong></div></div><ol class="capture-steps"><li>Arriva almeno 20 minuti prima e colloca il treppiede alle coordinate migliori indicate.</li><li>Centra l’intero disco lunare nel teleobiettivo, usa AF e controlla la nitidezza dei crateri.</li><li>Attiva <strong>Moon Track</strong>, poi passa a <strong>Video 1080p/60 fps</strong>.</li><li>Imposta VIS, Gain 0 e prova l’esposizione proposta; riducila se le zone chiare risultano bruciate.</li><li>Avvia la registrazione 45 secondi prima dell’ora prevista e non toccare più il telescopio.</li></ol><div class="capture-warning">L’esposizione è un punto di partenza: nuvole sottili, foschia e fase lunare richiedono una prova sul posto. Conferma sempre orario e coordinate il giorno stesso.</div></div></details>`;
 }
 
 function icsLink(e,index){
