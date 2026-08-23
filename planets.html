@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Visibilità gratuita di Giove, Venere, Marte e Saturno con opposizioni e lune galileiane di Giove.">
+  <title>Planet Visibility Planner</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="planets.css">
+</head>
+<body class="planet-page">
+  <nav class="page-switch" aria-label="Selezione pagina">
+    <a href="index.html">🌙 Transiti lunari</a>
+    <a href="solar.html">☀️ Transiti solari</a>
+    <a class="active" href="planets.html">🪐 Pianeti</a>
+  </nav>
+
+  <header class="hero planet-hero">
+    <div class="eyebrow">ASTROPHOTOGRAPHY PLANNER</div>
+    <h1>Visibilità <span>Pianeti</span></h1>
+    <p>Giove · Venere · Marte · Saturno — visibilità e geometria per la posizione selezionata, con orizzonte di pianificazione di 30 giorni.</p>
+  </header>
+
+  <main class="planet-main">
+    <section class="panel">
+      <div class="section-title"><div><span class="step">1</span><h2>Posizione e data</h2></div><button id="geoButton" class="secondary" type="button">⌖ Usa la mia posizione</button></div>
+      <div class="planet-fields">
+        <label>Latitudine
+          <input id="latitude" type="number" value="45.794" min="-90" max="90" step="0.00001" required>
+          <small>Nord positivo, Sud negativo</small>
+        </label>
+        <label>Longitudine
+          <input id="longitude" type="number" value="13.339" min="-180" max="180" step="0.00001" required>
+          <small>Est positivo, Ovest negativo</small>
+        </label>
+        <label>Quota (metri)
+          <input id="elevation" type="number" value="10" min="-500" max="9000" step="1" required>
+          <small>Stima sufficiente per il calcolo</small>
+        </label>
+        <label>Data da analizzare
+          <input id="date" type="date" required>
+          <small>Selezionabile nei prossimi 30 giorni</small>
+        </label>
+      </div>
+      <div class="controls">
+        <button id="calculateButton" class="primary" type="button">Calcola visibilità</button>
+        <button id="todayButton" class="secondary" type="button">Oggi</button>
+      </div>
+      <div class="assumption-box">
+        <strong>Ipotesi dichiarate</strong>
+        <p><b>Sopra l’orizzonte</b>: altezza &gt; 0°. <b>Finestra osservativa utile</b>: pianeta &gt; 10° e Sole &lt; −6°. La massima altezza è cercata solo dentro tale finestra. L’opposizione è un istante astronomico e viene quindi mostrata come data/ora esatta. Per Venere l’opposizione non è applicabile e viene mostrata la prossima massima elongazione. Gli orari sono quelli locali del browser/dispositivo.</p>
+      </div>
+      <div id="message" class="message hidden" role="status"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><div><span class="step">2</span><h2>Visibilità nella data selezionata</h2></div></div>
+      <div id="planetCards" class="planet-loading">Caricamento del motore astronomico…</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><div><span class="step">3</span><h2>Panoramica prossimi 30 giorni</h2></div></div>
+      <div id="summary30" class="planet-loading">Calcolo della panoramica…</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><div><span class="step">4</span><h2>Giove — disposizione lune galileiane</h2></div><span class="planet-badge">CALCOLO REALE</span></div>
+      <div class="jupiter-inputs">
+        <label>Data / ora locale
+          <input id="jupiterTime" type="datetime-local">
+          <small>Puoi modificare liberamente l’istante.</small>
+        </label>
+        <label>Riferimento
+          <input value="Est a sinistra · Ovest a destra" disabled>
+          <small>Orientamento astronomico del cielo; l’immagine del telescopio può risultare ruotata o specchiata.</small>
+        </label>
+      </div>
+      <div class="controls"><button id="jupiterUpdate" class="secondary" type="button">Aggiorna lune di Giove</button></div>
+      <div id="jupiterMoons" class="planet-loading">Calcolo della disposizione…</div>
+    </section>
+
+    <section class="notice">
+      <strong>Precisione e uso</strong>
+      <p>Le effemeridi sono calcolate nel browser con Astronomy Engine. Gli intervalli di visibilità sono campionati ogni 5 minuti: gli orari “dalle–alle” hanno quindi una risoluzione di circa 5 minuti. Per pianificare una sessione osservativa verifica sempre anche meteo, ostacoli locali e orizzonte reale.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>100% gratuito · Nessun account · Nessuna coordinata salvata · Calcolo locale nel browser</p>
+    <p class="credits">Effemeridi: Astronomy Engine · Pianeti: Giove, Venere, Marte, Saturno</p>
+  </footer>
+
+  <script type="module" src="planets.js"></script>
+</body>
+</html>
