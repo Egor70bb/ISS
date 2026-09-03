@@ -65,6 +65,7 @@
         <span id="count" class="messier-count"></span>
       </div>
       <div id="summary" class="messier-summary hidden"></div>
+      <div class="messier-popup-help">Quando <b>Vis. utile = SÌ</b>, clicca sul numero Messier per aprire i settaggi iniziali suggeriti per <b>DWARF 3</b>.</div>
       <div id="tableArea" class="messier-loading">Caricamento catalogo Messier e motore astronomico…</div>
     </section>
 
@@ -76,8 +77,21 @@
 
   <footer>
     <p>100% gratuito · Nessun account · Nessuna coordinata salvata · Calcolo locale nel browser</p>
-    <p class="credits">Catalogo: d3-celestial / SEDS · Effemeridi e trasformazioni: Astronomy Engine</p>
+    <p class="credits">Catalogo: d3-celestial / SEDS · Effemeridi e trasformazioni: Astronomy Engine · Settaggi: linee guida DWARFLAB DWARF 3</p>
   </footer>
+
+  <div id="settingsModal" class="messier-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="messier-modal-backdrop" data-close-modal></div>
+    <div class="messier-modal-card" role="document">
+      <button id="settingsClose" class="messier-modal-close" type="button" aria-label="Chiudi">×</button>
+      <div class="messier-modal-kicker">DWARF 3 · DEEP SKY</div>
+      <h2 id="settingsTitle">Settaggi iniziali</h2>
+      <div id="settingsBody"></div>
+      <div class="messier-modal-note">
+        <strong>Importante:</strong> sono valori iniziali suggeriti, non parametri “ottimali” garantiti per ogni cielo. DWARFLAB raccomanda in Deep Sky esposizioni 15–60 s, Gain 60–80 e normalmente 200–400 frame. Verifica sempre anche il filtro suggerito dallo Star Atlas/Auto Parameters e usa dark frame compatibili con esposizione e Gain.
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="messier.js"></script>
 </body>
