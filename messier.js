@@ -17,6 +17,7 @@ const TYPE_NAMES = {
 
 let catalog = [];
 let rows = [];
+let lastFocusedElement = null;
 
 const pad = n => String(n).padStart(2,'0');
 const localDateString = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -47,6 +48,19 @@ $('todayButton').addEventListener('click', () => {
 });
 $('search').addEventListener('input', () => rows.length && renderTable());
 $('usefulOnly').addEventListener('change', () => rows.length && renderTable());
+$('tableArea').addEventListener('click', event => {
+  const button = event.target.closest('[data-messier-settings]');
+  if (!button) return;
+  const row = rows.find(item => item.id === button.dataset.messierSettings);
+  if (row?.usefulVisible) openSettingsModal(row,button);
+});
+$('settingsClose').addEventListener('click', closeSettingsModal);
+$('settingsModal').addEventListener('click', event => {
+  if (event.target.hasAttribute('data-close-modal')) closeSettingsModal();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('settingsModal').classList.contains('hidden')) closeSettingsModal();
+});
 
 function readObserver(){
   const lat = Number($('latitude').value);
@@ -175,6 +189,7 @@ function extractCatalog(data,names){
       id:`M${number}`,
       designation,
       name:commonName,
+      typeCode:String(properties.type || '').toLowerCase(),
       type:TYPE_NAMES[String(properties.type || '').toLowerCase()] || String(properties.type || '—'),
       magnitude:Number(properties.mag),
       ra:raFromGeoJsonLongitude(lon),
@@ -189,6 +204,11 @@ function nameCell(row){
   const primary = row.name || row.designation || row.id;
   const secondary = row.designation && row.designation !== primary ? row.designation : '';
   return `<strong>${escapeHtml(primary)}</strong>${secondary ? `<small>${escapeHtml(secondary)}</small>` : ''}`;
+}
+
+function messierNumberCell(row){
+  if (!row.usefulVisible) return `<span class="messier-number-static">${row.id}</span>`;
+  return `<button class="messier-number-button" type="button" data-messier-settings="${row.id}" aria-label="Apri settaggi DWARF 3 per ${row.id}">${row.id}</button>`;
 }
 
 function renderTable(){
@@ -207,7 +227,7 @@ function renderTable(){
       <th>Sorge</th><th>Culmina</th><th>Alt. max</th><th>Tramonta</th><th>Durata utile</th>
     </tr></thead>
     <tbody>${visibleRows.map(row => `<tr>
-      <td class="messier-number">${row.id}</td>
+      <td class="messier-number">${messierNumberCell(row)}</td>
       <td class="messier-name">${nameCell(row)}</td>
       <td class="messier-type">${escapeHtml(row.type)}${Number.isFinite(row.magnitude) ? `<small>mag ${row.magnitude.toFixed(1)}</small>` : ''}</td>
       <td><span class="${row.geometricVisible?'messier-yes':'messier-no'}">${row.geometricVisible?'SÌ':'NO'}</span></td>
@@ -221,11 +241,66 @@ function renderTable(){
   </table>`;
 }
 
+function suggestedSettings(row){
+  const magnitude = Number.isFinite(row.magnitude) ? row.magnitude : 8;
+  let exposure = 60;
+  if (row.maxAltitude < 20 || magnitude <= 4.5) exposure = 15;
+  else if (row.maxAltitude < 30 || magnitude <= 6) exposure = 30;
+
+  const gain = magnitude <= 5.5 ? 60 : magnitude <= 8 ? 70 : 80;
+  const targetFrames = magnitude <= 5.5 ? 200 : magnitude <= 8 ? 300 : 400;
+  const possibleFrames = Math.max(1,Math.floor((row.usefulMinutes*60)/exposure));
+  const frames = Math.max(1,Math.min(targetFrames,possibleFrames));
+  const sessionMinutes = frames*exposure/60;
+  const constrainedByWindow = frames < targetFrames;
+  const altitudeClass = row.maxAltitude >= 30 ? 'Ideale' : row.maxAltitude >= 20 ? 'Discreta' : 'Bassa';
+
+  return {exposure,gain,targetFrames,frames,sessionMinutes,constrainedByWindow,altitudeClass};
+}
+
+function openSettingsModal(row,trigger){
+  const settings = suggestedSettings(row);
+  const titleName = row.name || row.designation || row.id;
+  const magnitudeText = Number.isFinite(row.magnitude) ? row.magnitude.toFixed(1) : 'n/d';
+  const frameNote = settings.constrainedByWindow
+    ? `La finestra utile di ${durationText(row.usefulMinutes)} limita la sessione a circa ${settings.frames} frame; il target teorico sarebbe ${settings.targetFrames}.`
+    : `Il numero di frame rientra nel target suggerito per questa luminosità.`;
+
+  $('settingsTitle').textContent = `${row.id} · ${titleName}`;
+  $('settingsBody').innerHTML = `
+    <div class="messier-settings-context">
+      <span>${escapeHtml(row.type)}</span><span>mag ${magnitudeText}</span><span>alt. max ${row.maxAltitude.toFixed(1)}°</span><span>${settings.altitudeClass}</span>
+    </div>
+    <div class="messier-settings-grid">
+      <div><span>Modalità</span><strong>Deep Sky · Manual</strong></div>
+      <div><span>ISO</span><strong>n/a</strong><small>DWARF 3 usa il Gain</small></div>
+      <div><span>Esposizione</span><strong>${settings.exposure} s</strong></div>
+      <div><span>Gain</span><strong>${settings.gain}</strong></div>
+      <div><span>Numero frame</span><strong>${settings.frames}</strong></div>
+      <div><span>Integrazione stimata</span><strong>${durationText(settings.sessionMinutes)}</strong></div>
+      <div><span>Filtro</span><strong>Star Atlas / Auto</strong><small>usa il filtro suggerito dal DWARF 3 per il target</small></div>
+      <div><span>Dark frame</span><strong>Coerenti</strong><small>stessa esposizione e Gain; temperatura il più possibile vicina</small></div>
+    </div>
+    <div class="messier-settings-reason"><strong>Perché questi valori:</strong> ${frameNote} I valori vengono scelti entro i range Deep Sky ufficiali DWARFLAB in funzione di magnitudine, altezza massima e tempo realmente disponibile.</div>`;
+
+  lastFocusedElement = trigger || document.activeElement;
+  $('settingsModal').classList.remove('hidden');
+  document.body.classList.add('messier-modal-open');
+  $('settingsClose').focus();
+}
+
+function closeSettingsModal(){
+  $('settingsModal').classList.add('hidden');
+  document.body.classList.remove('messier-modal-open');
+  if (lastFocusedElement?.focus) lastFocusedElement.focus();
+}
+
 async function calculate(){
   const observer = readObserver();
   const start = selectedNightStart();
   if (!observer || !start) return showMessage('Seleziona una data valida.');
   hideMessage();
+  closeSettingsModal();
   const end = addDaysLocal(start,1);
   $('calculateButton').disabled = true;
   $('tableArea').className = 'messier-loading';
