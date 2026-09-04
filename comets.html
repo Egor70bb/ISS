@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Comete fotografabili nei prossimi 30 giorni con DWARF 3 per la posizione selezionata.">
+  <title>Comet Visibility Planner</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="comets.css">
+</head>
+<body class="comets-page">
+  <nav class="page-switch" aria-label="Selezione pagina">
+    <a href="index.html">🌙 Transiti lunari</a>
+    <a href="solar.html">☀️ Transiti solari</a>
+    <a href="planets.html">🪐 Pianeti</a>
+    <a href="messier.html">✨ Messier</a>
+    <a class="active" href="comets.html">☄️ Comete</a>
+  </nav>
+
+  <header class="hero comets-hero">
+    <div class="eyebrow">ASTROPHOTOGRAPHY PLANNER</div>
+    <h1>Visibilità <span>Comete</span></h1>
+    <p>Trova le comete potenzialmente fotografabili nei prossimi 30 giorni dalla posizione selezionata e le tre migliori finestre osservative per ciascun oggetto.</p>
+  </header>
+
+  <main class="comets-main">
+    <section class="panel">
+      <div class="section-title">
+        <div><span class="step">1</span><h2>Posizione di osservazione</h2></div>
+        <button id="geoButton" class="secondary" type="button">⌖ Usa la mia posizione</button>
+      </div>
+      <div class="comets-fields">
+        <label>Latitudine
+          <input id="latitude" type="number" value="45.794" min="-90" max="90" step="0.00001" required>
+          <small>Nord positivo, Sud negativo</small>
+        </label>
+        <label>Longitudine
+          <input id="longitude" type="number" value="13.339" min="-180" max="180" step="0.00001" required>
+          <small>Est positivo, Ovest negativo</small>
+        </label>
+        <label>Quota (metri)
+          <input id="elevation" type="number" value="10" min="-500" max="9000" step="1" required>
+          <small>Quota del punto di ripresa</small>
+        </label>
+        <label>Periodo
+          <input value="Prossimi 30 giorni" disabled>
+          <small>A partire da oggi</small>
+        </label>
+      </div>
+      <div class="controls">
+        <button id="calculateButton" class="primary" type="button">Cerca comete fotografabili</button>
+      </div>
+      <div class="comets-assumption">
+        <strong>Criteri concordati</strong>
+        <p><b>Fotografabile</b>: magnitudine totale prevista ≤ 12, altezza ≥ 20°, Sole sotto −18° e almeno circa 20 minuti di finestra utile. Per ogni cometa vengono mostrate al massimo le <b>3 migliori notti</b>. Il giudizio considera anche fase e separazione della Luna.</p>
+      </div>
+      <div id="message" class="message hidden" role="status"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div><span class="step">2</span><h2>Comete fotografabili</h2></div>
+        <span id="dataAge" class="comets-data-age">Dati: —</span>
+      </div>
+      <div id="summary" class="comets-summary hidden"></div>
+      <div id="results" class="comets-loading">Caricamento catalogo cometario…</div>
+    </section>
+
+    <section class="panel comets-dwarf-panel">
+      <div class="section-title"><div><span class="step">3</span><h2>Preset DWARF 3</h2></div><span class="comets-badge">COMETE</span></div>
+      <div class="comets-dwarf-grid">
+        <div><span>Modalità</span><strong>Deep Sky · Manual</strong></div>
+        <div><span>Esposizione iniziale</span><strong>15 s</strong></div>
+        <div><span>Gain</span><strong>80</strong></div>
+        <div><span>Frame</span><strong>75–100</strong></div>
+        <div><span>Integrazione</span><strong>18m 45s – 25m</strong></div>
+        <div><span>ISO</span><strong>n/a</strong><small>DWARF 3 utilizza Gain</small></div>
+      </div>
+      <p class="comets-dwarf-note">Il preset è un punto di partenza prudente. La pagina riduce automaticamente il numero di frame quando la finestra fotografabile è troppo breve. Ricrea dark frame compatibili quando cambiano esposizione/Gain o le condizioni termiche.</p>
+    </section>
+
+    <section class="notice">
+      <strong>Precisione e limiti</strong>
+      <p>La cache usa elementi osculanti NASA/JPL aggiornati automaticamente. La posizione della cometa viene propagata localmente con un modello a due corpi per mantenere il sito statico e gratuito: è adeguato alla selezione preliminare, ma può perdere precisione per comete con forti perturbazioni, outgassing o passaggi ravvicinati. La magnitudine cometaria è una previsione e può cambiare anche sensibilmente per attività o outburst. Prima della ripresa verifica nuovamente il target nel DWARF Star Atlas o in un’efemeride aggiornata.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>100% gratuito · Nessun account · Nessuna coordinata salvata · Calcolo locale nel browser</p>
+    <p class="credits">Elementi cometari: NASA/JPL SBDB · Sole/Luna/Terra e trasformazioni: Astronomy Engine · Settaggi: linee guida DWARFLAB</p>
+  </footer>
+
+  <script type="module" src="comets.js"></script>
+</body>
+</html>
