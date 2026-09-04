@@ -12,6 +12,8 @@ const GAUSSIAN_K = 0.01720209895;   // rad/day, Gaussian gravitational constant
 let cometCatalog = [];
 let cacheMeta = null;
 let running = false;
+let renderedWindows = [];
+let lastFocusedElement = null;
 
 $('geoButton').addEventListener('click', () => {
   if (!navigator.geolocation) return showMessage('Geolocalizzazione non disponibile in questo browser.');
@@ -23,6 +25,20 @@ $('geoButton').addEventListener('click', () => {
   }, () => showMessage('Posizione non acquisita. Inserisci manualmente le coordinate.'));
 });
 $('calculateButton').addEventListener('click', calculate);
+$('results').addEventListener('click', event => {
+  const button = event.target.closest('[data-comet-settings]');
+  if (!button) return;
+  const index = Number(button.dataset.cometSettings);
+  const entry = renderedWindows[index];
+  if (entry) openCometSettingsModal(entry,button);
+});
+$('cometSettingsClose').addEventListener('click', closeCometSettingsModal);
+$('cometSettingsModal').addEventListener('click', event => {
+  if (event.target.hasAttribute('data-close-comet-modal')) closeCometSettingsModal();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('cometSettingsModal').classList.contains('hidden')) closeCometSettingsModal();
+});
 
 function readObserver(){
   const lat = Number($('latitude').value);
@@ -99,7 +115,7 @@ function cometHeliocentricEcliptic(comet,date){
     r = a*(1-e*Math.cos(E));
     nu = 2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2), Math.sqrt(1-e)*Math.cos(E/2));
   } else if (e > 1.000001) {
-    const a = q/(e-1);  // positive magnitude of hyperbolic semimajor axis
+    const a = q/(e-1);
     if (!(a > 0)) return null;
     const M = GAUSSIAN_K*dt/Math.pow(a,1.5);
     const H = solveHyperbolic(M,e);
@@ -232,7 +248,8 @@ function qualityFor(window){
 }
 
 function settingsFor(window){
-  const frames=Math.max(75,Math.min(100,Math.floor(window.duration*60/15)));
+  const possibleFrames=Math.floor(window.duration*60/15);
+  const frames=Math.max(75,Math.min(100,possibleFrames));
   return {exposure:15,gain:80,frames,integrationMin:frames*15/60};
 }
 
@@ -254,6 +271,7 @@ function escapeHtml(value){return String(value).replace(/[&<>'"]/g,c=>({'&':'&am
 function renderResults(comets){
   const flat=[];
   for (const item of comets) for (let i=0;i<item.windows.length;i++) flat.push({comet:item.comet,window:item.windows[i],rank:i+1});
+  renderedWindows=flat;
   if (!flat.length) {
     $('results').className='comets-empty';
     $('results').innerHTML='<strong>Nessuna cometa soddisfa i criteri selezionati nei prossimi 30 giorni.</strong><br>Questo non significa che non esistano comete osservabili: significa che nessuna candidata della cache supera contemporaneamente magnitudine ≤12, altezza ≥20°, buio astronomico e finestra minima richiesta.';
@@ -261,11 +279,11 @@ function renderResults(comets){
   }
   $('results').className='comets-table-wrap';
   $('results').innerHTML=`<table class="comets-table"><thead><tr>
-    <th>Cometa</th><th>Giorno</th><th>Ora migliore</th><th>Altezza</th><th>Azimut</th><th>Mag. prev.</th><th>Luna</th><th>Qualità</th><th>Finestra utile</th><th>DWARF 3</th>
-  </tr></thead><tbody>${flat.map(({comet,window,rank})=>{
-    const p=window.peak,q=qualityFor(window),s=settingsFor(window);
+    <th>Cometa</th><th>Giorno</th><th>Ora migliore</th><th>Altezza</th><th>Azimut</th><th>Mag. prev.</th><th>Luna</th><th>Qualità</th><th>Finestra utile</th>
+  </tr></thead><tbody>${flat.map(({comet,window,rank},index)=>{
+    const p=window.peak,q=qualityFor(window);
     return `<tr>
-      <td class="comet-name"><strong>${escapeHtml(comet.name||comet.designation)}</strong><small>${escapeHtml(comet.designation)} · finestra ${rank}/3</small></td>
+      <td class="comet-name"><button class="comet-name-button" type="button" data-comet-settings="${index}" aria-label="Apri settaggi DWARF 3 per ${escapeHtml(comet.name||comet.designation)}, finestra ${rank}">${escapeHtml(comet.name||comet.designation)}</button><small>${escapeHtml(comet.designation)} · finestra ${rank}/3</small></td>
       <td class="comet-time">${dayText(p.date)}</td>
       <td class="comet-time">≈ ${timeText(p.date)}</td>
       <td class="comet-number">${p.altitude.toFixed(1)}°</td>
@@ -274,9 +292,49 @@ function renderResults(comets){
       <td class="comet-moon">${moonText(p.moon)}</td>
       <td><span class="comet-quality ${q.className}">${q.label}</span></td>
       <td class="comet-time">${timeText(window.start)}–${timeText(window.end)}<small style="display:block;color:var(--muted)">${durationText(window.duration)}</small></td>
-      <td class="comet-settings"><strong>15 s · Gain 80 · ${s.frames} frame</strong><small>integrazione ${integrationText(s.integrationMin)}</small></td>
     </tr>`;
   }).join('')}</tbody></table>`;
+}
+
+function openCometSettingsModal(entry,trigger){
+  const {comet,window,rank}=entry;
+  const p=window.peak;
+  const q=qualityFor(window);
+  const s=settingsFor(window);
+  const cometName=comet.name||comet.designation;
+  const moonSummary=p.moon.altitude<=0
+    ? `Luna sotto l’orizzonte · fase ${p.moon.illumination.toFixed(0)}%`
+    : `Luna ${p.moon.illumination.toFixed(0)}% · separazione ${p.moon.separation.toFixed(0)}° · alt. ${p.moon.altitude.toFixed(0)}°`;
+
+  $('cometSettingsTitle').textContent=`${cometName} · finestra ${rank}/3`;
+  $('cometSettingsBody').innerHTML=`
+    <div class="comets-settings-context">
+      <span>${dayText(p.date)}</span><span>≈ ${timeText(p.date)}</span><span>alt. ${p.altitude.toFixed(1)}°</span><span>mag. prev. ${p.predictedMag.toFixed(1)}</span><span>${q.label}</span>
+    </div>
+    <div class="comets-settings-grid">
+      <div><span>Modalità</span><strong>Deep Sky · Manual</strong></div>
+      <div><span>ISO</span><strong>n/a</strong><small>DWARF 3 utilizza il Gain</small></div>
+      <div><span>Esposizione</span><strong>${s.exposure} s</strong></div>
+      <div><span>Gain</span><strong>${s.gain}</strong></div>
+      <div><span>Numero frame</span><strong>${s.frames}</strong></div>
+      <div><span>Integrazione stimata</span><strong>${integrationText(s.integrationMin)}</strong></div>
+      <div><span>Finestra utile</span><strong>${timeText(window.start)}–${timeText(window.end)}</strong><small>${durationText(window.duration)}</small></div>
+      <div><span>Azimut al picco</span><strong>${azimuthText(p.azimuth)}</strong></div>
+      <div><span>Dark frame</span><strong>Coerenti</strong><small>stessa esposizione e Gain; temperatura il più possibile vicina</small></div>
+      <div><span>Verifica target</span><strong>Star Atlas</strong><small>ricontrolla posizione e tracking poco prima della ripresa</small></div>
+    </div>
+    <div class="comets-settings-reason"><strong>Luna:</strong> ${moonSummary}. Il numero di frame è limitato alla specifica finestra osservativa; esposizione e Gain restano sul preset prudente concordato per le comete.</div>`;
+
+  lastFocusedElement=trigger||document.activeElement;
+  $('cometSettingsModal').classList.remove('hidden');
+  document.body.classList.add('comets-modal-open');
+  $('cometSettingsClose').focus();
+}
+
+function closeCometSettingsModal(){
+  $('cometSettingsModal').classList.add('hidden');
+  document.body.classList.remove('comets-modal-open');
+  if (lastFocusedElement?.focus) lastFocusedElement.focus();
 }
 
 async function calculate(){
@@ -285,6 +343,7 @@ async function calculate(){
   if (!observer) return;
   if (!cometCatalog.length) return showMessage('Catalogo comete non ancora disponibile. Riprova dopo l’aggiornamento automatico dei dati JPL.');
   hideMessage();
+  closeCometSettingsModal();
   running=true;
   $('calculateButton').disabled=true;
   $('summary').classList.add('hidden');
@@ -325,6 +384,7 @@ async function calculate(){
     $('summary').innerHTML=`<span><strong>${found.length}</strong> comete fotografabili</span><span><strong>${totalWindows}</strong> migliori finestre</span><span>Periodo: <strong>30 giorni</strong></span><span>Passo calcolo: <strong>${STEP_MINUTES} min</strong></span>`;
     renderResults(found);
   } catch (error) {
+    renderedWindows=[];
     $('results').className='comets-error';
     $('results').textContent=`Errore di calcolo: ${error.message}`;
   } finally {
