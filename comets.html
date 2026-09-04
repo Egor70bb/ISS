@@ -63,20 +63,8 @@
         <span id="dataAge" class="comets-data-age">Dati: —</span>
       </div>
       <div id="summary" class="comets-summary hidden"></div>
+      <div class="comets-popup-help">Quando una cometa è presente in tabella, clicca sul <b>nome</b> per aprire i settaggi DWARF 3 riferiti a quella specifica finestra osservativa.</div>
       <div id="results" class="comets-loading">Caricamento catalogo cometario…</div>
-    </section>
-
-    <section class="panel comets-dwarf-panel">
-      <div class="section-title"><div><span class="step">3</span><h2>Preset DWARF 3</h2></div><span class="comets-badge">COMETE</span></div>
-      <div class="comets-dwarf-grid">
-        <div><span>Modalità</span><strong>Deep Sky · Manual</strong></div>
-        <div><span>Esposizione iniziale</span><strong>15 s</strong></div>
-        <div><span>Gain</span><strong>80</strong></div>
-        <div><span>Frame</span><strong>75–100</strong></div>
-        <div><span>Integrazione</span><strong>18m 45s – 25m</strong></div>
-        <div><span>ISO</span><strong>n/a</strong><small>DWARF 3 utilizza Gain</small></div>
-      </div>
-      <p class="comets-dwarf-note">Il preset è un punto di partenza prudente. La pagina riduce automaticamente il numero di frame quando la finestra fotografabile è troppo breve. Ricrea dark frame compatibili quando cambiano esposizione/Gain o le condizioni termiche.</p>
     </section>
 
     <section class="notice">
@@ -89,6 +77,19 @@
     <p>100% gratuito · Nessun account · Nessuna coordinata salvata · Calcolo locale nel browser</p>
     <p class="credits">Elementi cometari: NASA/JPL SBDB · Sole/Luna/Terra e trasformazioni: Astronomy Engine · Settaggi: linee guida DWARFLAB</p>
   </footer>
+
+  <div id="cometSettingsModal" class="comets-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cometSettingsTitle">
+    <div class="comets-modal-backdrop" data-close-comet-modal></div>
+    <div class="comets-modal-card" role="document">
+      <button id="cometSettingsClose" class="comets-modal-close" type="button" aria-label="Chiudi">×</button>
+      <div class="comets-modal-kicker">DWARF 3 · COMETA</div>
+      <h2 id="cometSettingsTitle">Settaggi iniziali</h2>
+      <div id="cometSettingsBody"></div>
+      <div class="comets-modal-note">
+        <strong>Importante:</strong> sono valori iniziali suggeriti per la specifica finestra, non parametri ottimali garantiti. Il preset concordato è 15 s · Gain 80 · 75–100 frame; il numero di frame viene limitato automaticamente dal tempo realmente disponibile.
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="comets.js"></script>
 </body>
