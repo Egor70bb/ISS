@@ -24,7 +24,7 @@ jobs:
       - name: Scarica il repository
         uses: actions/checkout@v5
 
-      - name: Aggiorna elementi cometari JPL
+      - name: Aggiorna elementi e fotometria delle comete
         shell: bash
         run: |
           set -u
@@ -32,9 +32,231 @@ jobs:
           rm -f data/comets.json.new data/comets.raw.json
 
           python - <<'PY'
-          import json, math, sys, urllib.parse, urllib.request
-          from datetime import datetime, timezone
+          import json, math, re, sys, urllib.parse, urllib.request
+          from datetime import datetime, timezone, timedelta
+          from html.parser import HTMLParser
           from pathlib import Path
+
+          GAUSSIAN_K = 0.01720209895
+          FIT_DAYS = 45
+          now = datetime.now(timezone.utc)
+
+          # Le pagine Aerith vengono usate soltanto per le apparizioni correnti
+          # più rilevanti per il limite fotografico della pagina. Il catalogo
+          # completo e il fallback restano NASA/JPL SBDB.
+          apparition_sources = {
+              '10P': 'https://www.aerith.net/comet/catalog/0010P/2026.html',
+              '88P': 'https://www.aerith.net/comet/catalog/0088P/2026.html',
+              '161P': 'https://www.aerith.net/comet/catalog/0161P/2026.html',
+              '169P': 'https://www.aerith.net/comet/catalog/0169P/2026.html',
+              '220P': 'https://www.aerith.net/comet/catalog/0220P/2026.html',
+              '2024 T5': 'https://www.aerith.net/comet/catalog/2024T5/2024T5.html',
+          }
+
+          previous_by_designation = {}
+          previous_path = Path('data/comets.json')
+          if previous_path.exists():
+              try:
+                  previous = json.loads(previous_path.read_text(encoding='utf-8'))
+                  previous_by_designation = {
+                      str(o.get('designation','')).strip(): o
+                      for o in previous.get('objects', [])
+                      if isinstance(o, dict)
+                  }
+              except Exception:
+                  previous_by_designation = {}
+
+          class TextExtractor(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.parts = []
+              def handle_data(self, data):
+                  self.parts.append(data)
+
+          def fetch_text(url):
+              req = urllib.request.Request(url, headers={'User-Agent':'Egor70bb-ISS-Comet-Planner/2.0'})
+              with urllib.request.urlopen(req, timeout=45) as response:
+                  raw = response.read().decode('utf-8', errors='replace')
+              parser = TextExtractor()
+              parser.feed(raw)
+              text = ' '.join(parser.parts)
+              text = text.replace('−','-').replace('–','-').replace('Δ','d')
+              return re.sub(r'\s+', ' ', text).strip()
+
+          months = {
+              'Jan.':1,'Feb.':2,'Mar.':3,'Apr.':4,'May':5,'June':6,
+              'July':7,'Aug.':8,'Sept.':9,'Oct.':10,'Nov.':11,'Dec.':12,
+          }
+
+          def calendar_tp_to_jd(year, month_name, day_value):
+              month = months[month_name]
+              day_float = float(day_value)
+              day = int(math.floor(day_float))
+              fraction = day_float - day
+              dt = datetime(int(year), month, day, tzinfo=timezone.utc) + timedelta(days=fraction)
+              return dt.timestamp()/86400.0 + 2440587.5
+
+          def parse_orbit(text):
+              # Formato tabellare usato dalla pagina corrente di 161P.
+              special = re.search(
+                  r'Epoch \(TT/JD\) T \(TT/JD\) Peri\. Node Incl\.\s*'
+                  r'(\d+\.\d+)\s+(\d+\.\d+)\s+([+-]?\d+(?:\.\d+)?)\s+'
+                  r'([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)', text)
+              special2 = re.search(
+                  r'\be\s+q\s+a\s+Epoch \(TT\)\s*'
+                  r'([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)', text)
+              if special and special2:
+                  return {
+                      'tp': float(special.group(2)),
+                      'w': float(special.group(3)),
+                      'om': float(special.group(4)),
+                      'i': float(special.group(5)),
+                      'e': float(special2.group(1)),
+                      'q': float(special2.group(2)),
+                  }
+
+              mt = re.search(
+                  r'\bT\s+(\d{4})\s+(Jan\.|Feb\.|Mar\.|Apr\.|May|June|July|Aug\.|Sept\.|Oct\.|Nov\.|Dec\.)\s+'
+                  r'(\d+(?:\.\d+)?)\s+TT', text)
+              mq = re.search(r'\bq\s+([+-]?\d+(?:\.\d+)?)', text)
+              me = re.search(r'\be\s+([+-]?\d+(?:\.\d+)?)\s+Incl\.', text)
+              mi = re.search(r'Incl\.\s+([+-]?\d+(?:\.\d+)?)', text)
+              mo = re.search(r'Node\s+([+-]?\d+(?:\.\d+)?)', text)
+              mw = re.search(r'Peri\.\s+([+-]?\d+(?:\.\d+)?)', text)
+              if not all([mt,mq,me,mi,mo,mw]):
+                  return None
+              return {
+                  'tp': calendar_tp_to_jd(mt.group(1), mt.group(2), mt.group(3)),
+                  'q': float(mq.group(1)),
+                  'e': float(me.group(1)),
+                  'i': float(mi.group(1)),
+                  'om': float(mo.group(1)),
+                  'w': float(mw.group(1)),
+              }
+
+          photometry_pattern = re.compile(
+              r'm1\s*=\s*([+-]?\d+(?:\.\d+)?)\s*\+\s*5(?:\.0)?\s*log\s*d\s*\+\s*'
+              r'([+-]?\d+(?:\.\d+)?)\s*log\s*r'
+              r'(?:\(\s*t\s*([+-])\s*(\d+(?:\.\d+)?)\s*\))?\s*'
+              r'(?:\[\s*([+-]?\d+)?\s*,\s*([+-]?\d+)?\s*\])?'
+          )
+
+          def parse_photometry(text):
+              segments = []
+              for m in photometry_pattern.finditer(text):
+                  shift = 0.0
+                  if m.group(3) and m.group(4):
+                      shift = float(m.group(4)) * (1 if m.group(3) == '+' else -1)
+                  segments.append({
+                      'base': float(m.group(1)),
+                      'k': float(m.group(2)),
+                      'shift_days': shift,
+                      't_min': float(m.group(5)) if m.group(5) not in (None,'') else None,
+                      't_max': float(m.group(6)) if m.group(6) not in (None,'') else None,
+                  })
+              # Elimina duplicati eventuali generati da testo ripetuto nella pagina.
+              unique = []
+              seen = set()
+              for s in segments:
+                  key = (s['base'],s['k'],s['shift_days'],s['t_min'],s['t_max'])
+                  if key not in seen:
+                      unique.append(s)
+                      seen.add(key)
+              return unique
+
+          def norm_angle(x):
+              tau = 2*math.pi
+              x %= tau
+              if x > math.pi: x -= tau
+              if x < -math.pi: x += tau
+              return x
+
+          def heliocentric_r(obj, jd):
+              dt = jd - obj['tp']
+              e = obj['e']
+              q = obj['q']
+              if e < 0.999999:
+                  a = q/(1-e)
+                  M = GAUSSIAN_K*dt/(a**1.5)
+                  M = norm_angle(M)
+                  E = M if e < 0.8 else (math.pi if M >= 0 else -math.pi)
+                  for _ in range(40):
+                      fp = 1 - e*math.cos(E)
+                      d = (E - e*math.sin(E) - M)/fp
+                      E -= d
+                      if abs(d) < 1e-13: break
+                  return a*(1-e*math.cos(E))
+              if e > 1.000001:
+                  a = q/(e-1)
+                  M = GAUSSIAN_K*dt/(a**1.5)
+                  H = math.asinh(M/max(e,1.000001))
+                  for _ in range(50):
+                      d = (e*math.sinh(H)-H-M)/(e*math.cosh(H)-1)
+                      H -= d
+                      if abs(d) < 1e-13: break
+                  return a*(e*math.cosh(H)-1)
+              B = GAUSSIAN_K*dt/(math.sqrt(2)*(q**1.5))
+              D = math.copysign(abs(3*B)**(1/3), 3*B) if B else 0.0
+              for _ in range(40):
+                  d = (D + D**3/3 - B)/(1 + D*D)
+                  D -= d
+                  if abs(d) < 1e-13: break
+              return q*(1+D*D)
+
+          def active_segment(segments, t_days):
+              for s in segments:
+                  if s['t_min'] is not None and t_days < s['t_min']:
+                      continue
+                  if s['t_max'] is not None and t_days > s['t_max']:
+                      continue
+                  return s
+              return None
+
+          def fit_standard_law(obj, segments):
+              xs, ys = [], []
+              for day in range(FIT_DAYS + 1):
+                  date = now + timedelta(days=day)
+                  current_jd = date.timestamp()/86400.0 + 2440587.5
+                  seg = active_segment(segments, current_jd - obj['tp'])
+                  if not seg:
+                      continue
+                  r = heliocentric_r(obj, current_jd)
+                  shifted_r = heliocentric_r(obj, current_jd + seg['shift_days'])
+                  if not (r > 0 and shifted_r > 0):
+                      continue
+                  xs.append(math.log10(r))
+                  ys.append(seg['base'] + seg['k']*math.log10(shifted_r))
+              if len(xs) < 5:
+                  return None
+              mx = sum(xs)/len(xs)
+              my = sum(ys)/len(ys)
+              den = sum((x-mx)**2 for x in xs)
+              if den < 1e-12:
+                  k_eff = 0.0
+                  h_eff = my
+              else:
+                  k_eff = sum((x-mx)*(y-my) for x,y in zip(xs,ys))/den
+                  h_eff = my - k_eff*mx
+              errors = [abs((h_eff+k_eff*x)-y) for x,y in zip(xs,ys)]
+              return h_eff, k_eff, max(errors)
+
+          apparition_data = {}
+          for designation, url in apparition_sources.items():
+              try:
+                  text = fetch_text(url)
+                  orbit = parse_orbit(text)
+                  segments = parse_photometry(text)
+                  if not orbit or not segments:
+                      raise ValueError('orbita o curva fotometrica non riconosciuta')
+                  apparition_data[designation] = {
+                      'orbit': orbit,
+                      'segments': segments,
+                      'url': url,
+                      'retrieved_at': now.isoformat(timespec='seconds'),
+                  }
+                  print(f'Apparizione corrente acquisita: {designation} ({len(segments)} curve).')
+              except Exception as exc:
+                  print(f'::warning::Fotometria corrente {designation} non aggiornata: {exc}. Userò la cache precedente o JPL.')
 
           fields = [
               'spkid','pdes','full_name','epoch','e','q','i','om','w','tp',
@@ -47,7 +269,7 @@ jobs:
               'full-prec': '1',
           }
           url = 'https://ssd-api.jpl.nasa.gov/sbdb_query.api?' + urllib.parse.urlencode(params)
-          req = urllib.request.Request(url, headers={'User-Agent':'Egor70bb-ISS-Comet-Planner/1.0'})
+          req = urllib.request.Request(url, headers={'User-Agent':'Egor70bb-ISS-Comet-Planner/2.0'})
 
           try:
               with urllib.request.urlopen(req, timeout=60) as response:
@@ -81,6 +303,8 @@ jobs:
                   return None
 
           objects = []
+          overrides = 0
+          cached_overrides = 0
           for row in rows:
               nums = {k:number(value(row,k)) for k in ['epoch','e','q','i','om','w','tp','M1','K1']}
               if any(nums[k] is None for k in nums):
@@ -88,38 +312,78 @@ jobs:
               if nums['q'] <= 0 or nums['e'] < 0:
                   continue
 
-              # Filtro volutamente permissivo: elimina solo comete che, anche in una
-              # geometria estremamente favorevole, resterebbero ben oltre la soglia
-              # fotografica della pagina. Il filtro definitivo (mag <= 12, alt >= 20°)
-              # viene calcolato nel browser per posizione e data dell'utente.
+              designation = str(value(row,'pdes') or '').strip()
+              original_m1 = nums['M1']
+              original_k1 = nums['K1']
+              current_meta = None
+
+              current = apparition_data.get(designation)
+              if current:
+                  for key in ['e','q','i','om','w','tp']:
+                      nums[key] = float(current['orbit'][key])
+                  fit = fit_standard_law(nums, current['segments'])
+                  if fit:
+                      nums['M1'], nums['K1'], fit_error = fit
+                      current_meta = {
+                          'source': 'Seiichi Yoshida / aerith.net',
+                          'source_url': current['url'],
+                          'retrieved_at': current['retrieved_at'],
+                          'fit_horizon_days': FIT_DAYS,
+                          'fit_max_error_mag': round(fit_error, 3),
+                          'segments': current['segments'],
+                      }
+                      overrides += 1
+              elif designation in apparition_sources:
+                  previous_obj = previous_by_designation.get(designation)
+                  previous_meta = previous_obj.get('photometry_current') if isinstance(previous_obj,dict) else None
+                  if previous_meta:
+                      reusable = True
+                      for key in ['e','q','i','om','w','tp','M1','K1']:
+                          try:
+                              nums[key] = float(previous_obj[key])
+                          except Exception:
+                              reusable = False
+                              break
+                      if reusable:
+                          current_meta = dict(previous_meta)
+                          current_meta['cached_from_previous'] = True
+                          cached_overrides += 1
+
               q = max(nums['q'], 0.03)
               optimistic_delta = max(abs(nums['q'] - 1.0), 0.03)
               optimistic_mag = nums['M1'] + 5*math.log10(optimistic_delta) + nums['K1']*math.log10(q)
-              if optimistic_mag > 15.0:
+              if optimistic_mag > 15.0 and designation not in apparition_sources:
                   continue
 
-              objects.append({
+              obj = {
                   'spkid': str(value(row,'spkid') or ''),
-                  'designation': str(value(row,'pdes') or '').strip(),
+                  'designation': designation,
                   'name': str(value(row,'full_name') or value(row,'pdes') or '').strip(),
                   'epoch': nums['epoch'], 'e': nums['e'], 'q': nums['q'],
                   'i': nums['i'], 'om': nums['om'], 'w': nums['w'], 'tp': nums['tp'],
                   'M1': nums['M1'], 'K1': nums['K1'],
+                  'sbdb_M1': original_m1, 'sbdb_K1': original_k1,
                   'condition_code': str(value(row,'condition_code') or ''),
                   'two_body': str(value(row,'two_body') or ''),
                   'optimistic_mag': round(optimistic_mag, 2),
-              })
+              }
+              if current_meta:
+                  obj['photometry_current'] = current_meta
+              objects.append(obj)
 
           objects.sort(key=lambda o: (o['optimistic_mag'], o['designation']))
           out = {
-              'generated_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
-              'source': 'NASA/JPL SBDB Query API',
+              'generated_at': now.isoformat(timespec='seconds'),
+              'source': 'NASA/JPL SBDB Query API + current-apparition photometry where available',
               'source_version': version,
-              'model': 'JPL osculating elements + local two-body propagation',
+              'photometry_source': 'Seiichi Yoshida / aerith.net',
+              'model': 'current-apparition orbit/photometry override with JPL SBDB fallback; local two-body propagation',
+              'current_apparition_overrides': overrides,
+              'cached_apparition_overrides': cached_overrides,
               'objects': objects,
           }
           Path('data/comets.json.new').write_text(json.dumps(out, ensure_ascii=False, separators=(',',':')), encoding='utf-8')
-          print(f'Cache preparata: {len(objects)} comete candidate con parametri fotometrici M1/K1.')
+          print(f'Cache preparata: {len(objects)} candidate; {overrides} apparizioni correnti aggiornate, {cached_overrides} riusate dalla cache.')
           PY
 
           if [ ! -s data/comets.json.new ]; then
@@ -148,11 +412,11 @@ jobs:
       - name: Pubblica soltanto se i dati sono cambiati
         run: |
           if git diff --quiet -- data/comets.json; then
-            echo "Catalogo comete già aggiornato oppure JPL temporaneamente non disponibile"
+            echo "Catalogo comete già aggiornato oppure sorgenti temporaneamente non disponibili"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/comets.json
-          git commit -m "Aggiorna catalogo comete JPL"
+          git commit -m "Aggiorna catalogo comete e fotometria corrente"
           git push
