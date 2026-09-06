@@ -86,6 +86,7 @@
         <strong>Modello di test</strong>
         <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
         <p><b>Tutti gli eventi:</b> nessun candidato geometrico viene eliminato perché cade in un campo, bosco o zona lontana dalla strada. OpenStreetMap viene usato soltanto per misurare la distanza dal punto teorico alla strada/parcheggio più vicino e per consentire i filtri logistici.</p>
+        <p><b>Elaborazione progressiva:</b> gli eventi geometrici vengono mostrati subito; strada/parcheggio e distanza auto si completano a blocchi. Se OSM/OSRM non rispondono entro il timeout, l'evento resta visibile e viene marcato come non verificato o fallback.</p>
         <p><b>Distanza auto:</b> per Ronchi è calcolata da <b>Terzo d'Aquileia · Comune</b>; per Linate da <b>Piazzale Loreto · Milano</b>. Quando esiste un accesso OSM, il routing punta a quel punto raggiungibile in auto; in caso contrario viene indicata soltanto una stima di fallback.</p>
       </div>
     </section>
@@ -107,7 +108,7 @@
     <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale · Accessibilità: © OpenStreetMap contributors / Overpass API · Distanze stradali: OSRM / OpenStreetMap</p>
   </footer>
 
-  <script type="module" src="aircraft.js"></script>
+  <script type="module" src="aircraft-v2.js"></script>
   <script src="aircraft-feed-status.js" defer></script>
 </body>
 </html>
