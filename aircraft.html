@@ -21,12 +21,12 @@
   <header class="hero aircraft-hero">
     <div class="eyebrow">EXPERIMENTAL PHOTOGRAPHY PLANNER</div>
     <h1>Aerei <span>× Sole / Luna</span></h1>
-    <p>Stima opportunità fotografiche vicino all'aeroporto combinando orari di arrivo/partenza, asse pista, posizione di Sole/Luna e accessibilità pratica del punto di ripresa.</p>
+    <p>Mostra tutti gli eventi geometrici candidati e permette poi di filtrarli in base alla distanza di viaggio e alla vicinanza del punto teorico a una strada o a un parcheggio.</p>
   </header>
 
   <main class="aircraft-main">
     <section class="panel">
-      <div class="section-title"><div><span class="step">1</span><h2>Ricerca</h2></div><span class="aircraft-badge">BETA</span></div>
+      <div class="section-title"><div><span class="step">1</span><h2>Ricerca e filtri</h2></div><span class="aircraft-badge">BETA</span></div>
       <div class="aircraft-fields">
         <label>Aeroporto
           <select id="airport">
@@ -59,13 +59,25 @@
           </select>
           <small>Gli arrivi hanno in genere una geometria più prevedibile.</small>
         </label>
-        <label>Accessibilità
-          <select id="accessMode">
-            <option value="strict">A · Preciso — dentro fascia</option>
-            <option value="balanced" selected>A+B · Equilibrato — fino a 150 m</option>
-            <option value="extended">A+B+C · Esteso — fino a 500 m</option>
+        <label>Distanza da strada / parcheggio
+          <select id="roadDistanceFilter">
+            <option value="all" selected>Tutti</option>
+            <option value="near">≤ 100 m</option>
+            <option value="mid">101–500 m</option>
+            <option value="far">&gt; 500 m / non rilevato</option>
           </select>
-          <small>Tolleranza logistica rispetto alla fascia nominale.</small>
+          <small>Misurata dal punto teorico di scatto.</small>
+        </label>
+        <label>Distanza dal punto di partenza
+          <select id="originDistanceFilter">
+            <option value="all" selected>Tutte</option>
+            <option value="10">≤ 10 km</option>
+            <option value="20">≤ 20 km</option>
+            <option value="30">≤ 30 km</option>
+            <option value="50">≤ 50 km</option>
+            <option value="100">≤ 100 km</option>
+          </select>
+          <small>Ronchi: Terzo d'Aquileia · Linate: Piazzale Loreto.</small>
         </label>
       </div>
       <div class="controls"><button id="calculateButton" class="primary" type="button">Cerca opportunità</button></div>
@@ -73,20 +85,20 @@
       <div class="aircraft-assumption">
         <strong>Modello di test</strong>
         <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
-        <p><b>Accessibilità A/B/C:</b> A = strada o parcheggio dentro la fascia nominale; B = accesso fino a 150 m oltre la fascia; C = fino a 500 m. B e soprattutto C sono compromessi logistici coerenti con l'incertezza già presente nella traiettoria reale dell'aereo: non significano che il transito sul disco sia geometricamente garantito dal punto stradale.</p>
-        <p><b>Distanza auto:</b> per Ronchi è calcolata da <b>Terzo d'Aquileia · Comune</b>; per Linate da <b>Piazzale Loreto · Milano</b>. Il routing usa OSRM/OpenStreetMap e, se non disponibile, viene mostrata soltanto la distanza in linea d'aria come fallback.</p>
+        <p><b>Tutti gli eventi:</b> nessun candidato geometrico viene eliminato perché cade in un campo, bosco o zona lontana dalla strada. OpenStreetMap viene usato soltanto per misurare la distanza dal punto teorico alla strada/parcheggio più vicino e per consentire i filtri logistici.</p>
+        <p><b>Distanza auto:</b> per Ronchi è calcolata da <b>Terzo d'Aquileia · Comune</b>; per Linate da <b>Piazzale Loreto · Milano</b>. Quando esiste un accesso OSM, il routing punta a quel punto raggiungibile in auto; in caso contrario viene indicata soltanto una stima di fallback.</p>
       </div>
     </section>
 
     <section class="panel">
-      <div class="section-title"><div><span class="step">2</span><h2>Eventi candidati accessibili</h2></div><span id="dataAge" class="aircraft-data-age">Dati voli: —</span></div>
+      <div class="section-title"><div><span class="step">2</span><h2>Tutti gli eventi candidati</h2></div><span id="dataAge" class="aircraft-data-age">Dati voli: —</span></div>
       <div id="summary" class="aircraft-summary hidden"></div>
       <div id="results" class="aircraft-loading">Caricamento orari voli…</div>
     </section>
 
     <section class="notice aircraft-warning">
       <strong>Non è una previsione aeronautica né un'indicazione di sosta</strong>
-      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. Nei livelli B/C il punto pratico può essere esterno alla fascia nominale proprio per trovare un compromesso raggiungibile. OpenStreetMap indica che vicino al punto esiste una strada o un parcheggio, ma non garantisce che sia possibile fermarsi o sostare. Fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate, piazzole non autorizzate o corsie di emergenza.</p>
+      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. La presenza di una strada o di un parcheggio vicino non garantisce che sia possibile fermarsi o sostare. Fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate, piazzole non autorizzate o corsie di emergenza.</p>
     </section>
   </main>
 
