@@ -21,7 +21,7 @@
   <header class="hero aircraft-hero">
     <div class="eyebrow">EXPERIMENTAL PHOTOGRAPHY PLANNER</div>
     <h1>Aerei <span>× Sole / Luna</span></h1>
-    <p>Stima opportunità fotografiche vicino all'aeroporto combinando orari di arrivo/partenza, asse pista e posizione apparente di Sole e Luna.</p>
+    <p>Stima opportunità fotografiche vicino all'aeroporto combinando orari di arrivo/partenza, asse pista, posizione di Sole/Luna e reale accessibilità stradale del punto di ripresa.</p>
   </header>
 
   <main class="aircraft-main">
@@ -41,7 +41,7 @@
             <option value="2">Prossimi 2 giorni</option>
             <option value="3" selected>Prossimi 3 giorni</option>
           </select>
-          <small>A partire da oggi, ora locale italiana.</small>
+          <small>A partire da questo momento, ora locale italiana.</small>
         </label>
         <label>Corpo celeste
           <select id="bodyFilter">
@@ -65,24 +65,26 @@
       <div class="aircraft-assumption">
         <strong>Modello di test</strong>
         <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
+        <p><b>Accessibilità:</b> un evento viene mostrato soltanto se la sua fascia fotografica intercetta una strada locale/residenziale/service oppure un parcheggio mappato in OpenStreetMap. Il punto suggerito viene posizionato sulla strada/parcheggio, non in mezzo a campi o boschi. Questo controllo non certifica la possibilità legale o sicura di fermarsi: va sempre verificata sul posto.</p>
+        <p><b>Distanza auto:</b> per Ronchi è calcolata da <b>Terzo d'Aquileia · Comune</b>; per Linate da <b>Piazzale Loreto · Milano</b>. Il routing usa OSRM/OpenStreetMap e, se non disponibile, viene mostrata soltanto la distanza in linea d'aria come fallback.</p>
       </div>
     </section>
 
     <section class="panel">
-      <div class="section-title"><div><span class="step">2</span><h2>Eventi candidati</h2></div><span id="dataAge" class="aircraft-data-age">Dati voli: —</span></div>
+      <div class="section-title"><div><span class="step">2</span><h2>Eventi candidati accessibili</h2></div><span id="dataAge" class="aircraft-data-age">Dati voli: —</span></div>
       <div id="summary" class="aircraft-summary hidden"></div>
       <div id="results" class="aircraft-loading">Caricamento orari voli…</div>
     </section>
 
     <section class="notice aircraft-warning">
-      <strong>Non è una previsione aeronautica</strong>
-      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. Il punto Maps serve per sopralluogo: fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate o corsie di emergenza.</p>
+      <strong>Non è una previsione aeronautica né un'indicazione di sosta</strong>
+      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. OpenStreetMap indica che vicino al punto esiste una strada o un parcheggio, ma non garantisce che sia possibile fermarsi o sostare. Fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate, piazzole non autorizzate o corsie di emergenza.</p>
     </section>
   </main>
 
   <footer>
     <p>100% gratuito · Nessuna API a pagamento · Calcolo geometrico nel browser</p>
-    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aggiornata da fonti aeroportuali pubbliche quando disponibili</p>
+    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale · Accessibilità: © OpenStreetMap contributors / Overpass API · Distanze stradali: OSRM / OpenStreetMap</p>
   </footer>
 
   <script type="module" src="aircraft.js"></script>
