@@ -11,8 +11,9 @@ const MOON_RADIUS_KM=1737.4;
 const BODY_RADIUS={sun:0.2666,moon:0.2725};
 const VALID_FLIGHT=/^[A-Z][A-Z0-9]{1,2}[0-9]{2,5}[A-Z]?$/i;
 const SAFE_HIGHWAYS=new Set(['residential','service','unclassified','living_street','tertiary']);
-const ACCESS_QUERY_RADIUS_M=180;
-const ACCESS_BATCH_SIZE=18;
+const ACCESS_QUERY_RADIUS_M=650;
+const ACCESS_MAX_GAP_M=500;
+const ACCESS_BATCH_SIZE=10;
 const ROUTE_BATCH_SIZE=35;
 
 const ORIGINS={
@@ -43,6 +44,7 @@ $('airport').addEventListener('change',calculate);
 $('days').addEventListener('change',calculate);
 $('bodyFilter').addEventListener('change',calculate);
 $('movementFilter').addEventListener('change',calculate);
+$('accessMode').addEventListener('change',calculate);
 
 function rad(v){return v*DEG} function deg(v){return v/DEG}
 function normBearing(v){return (v%360+360)%360}
@@ -156,6 +158,8 @@ function routeKey(code,p){return `${code}|${p.lat.toFixed(5)}|${p.lon.toFixed(5)
 function shootPoint(c){return c.access?.point||c.spot}
 function mapsUrl(c){const p=shootPoint(c);return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lon.toFixed(6)}`}
 function directionsUrl(code,c){const o=ORIGINS[code],p=shootPoint(c);return `https://www.google.com/maps/dir/?api=1&origin=${o.lat.toFixed(6)},${o.lon.toFixed(6)}&destination=${p.lat.toFixed(6)},${p.lon.toFixed(6)}&travelmode=driving`}
+function accessGapForMode(mode){return mode==='strict'?0:mode==='extended'?500:150}
+function accessModeLabel(mode){return mode==='strict'?'A · preciso':mode==='extended'?'A+B+C · esteso':'A+B · equilibrato'}
 
 function pointSegmentNearest(origin,a,b){
   const mLat=111320,mLon=111320*Math.cos(rad(origin.lat));
@@ -169,6 +173,7 @@ function pointSegmentNearest(origin,a,b){
 }
 function featureNearest(origin,element){
   const geom=Array.isArray(element.geometry)?element.geometry.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)):[];
+  if(!geom.length&&Number.isFinite(element.lat)&&Number.isFinite(element.lon)) return {distanceM:distanceKm(origin,{lat:element.lat,lon:element.lon})*1000,point:{lat:element.lat,lon:element.lon}};
   if(!geom.length) return null;
   if(geom.length===1) return {distanceM:distanceKm(origin,geom[0])*1000,point:{lat:geom[0].lat,lon:geom[0].lon}};
   let best=null;
@@ -196,7 +201,7 @@ function featureLabel(element){
 function buildOverpassQuery(candidates){
   const around=candidates.map(c=>{
     const lat=c.spot.lat.toFixed(6),lon=c.spot.lon.toFixed(6);
-    return `way(around:${ACCESS_QUERY_RADIUS_M},${lat},${lon})["highway"~"^(residential|service|unclassified|living_street|tertiary)$"]["access"!~"^(private|no)$"];\nway(around:${ACCESS_QUERY_RADIUS_M},${lat},${lon})["amenity"="parking"]["access"!~"^(private|no)$"];`;
+    return `way(around:${ACCESS_QUERY_RADIUS_M},${lat},${lon})["highway"~"^(residential|service|unclassified|living_street|tertiary)$"]["access"!~"^(private|no)$"];\nnwr(around:${ACCESS_QUERY_RADIUS_M},${lat},${lon})["amenity"="parking"]["access"!~"^(private|no)$"];`;
   }).join('\n');
   return `[out:json][timeout:25];(${around});out geom tags;`;
 }
@@ -214,20 +219,23 @@ async function fetchOverpass(query){
   throw lastError||new Error('Overpass non disponibile');
 }
 function chooseAccess(c,elements){
-  const limitM=Math.max(15,c.halfWidth);
+  const limitM=c.halfWidth+ACCESS_MAX_GAP_M;
   let best=null;
   for(const el of elements){
     const near=featureNearest(c.spot,el);
     if(!near||near.distanceM>limitM) continue;
+    const bandGapM=Math.max(0,near.distanceM-c.halfWidth);
+    if(bandGapM>ACCESS_MAX_GAP_M) continue;
     const meta=featureLabel(el);
-    const preference=near.distanceM-(meta.type==='parking'?12:0);
+    const grade=bandGapM<=0?'A':bandGapM<=150?'B':'C';
+    const preference=bandGapM+near.distanceM*.04-(meta.type==='parking'?18:0);
     if(!best||preference<best.preference){
-      best={...meta,point:near.point,offsetM:near.distanceM,limitM,preference,osmId:`${el.type||'way'}/${el.id}`};
+      best={...meta,point:near.point,offsetM:near.distanceM,bandGapM,grade,limitM,preference,osmId:`${el.type||'way'}/${el.id}`};
     }
   }
   return best;
 }
-async function filterAccessible(candidates){
+async function filterAccessible(candidates,maxGapM){
   const pending=candidates.filter(c=>!accessCache.has(candidateKey(c)));
   for(let i=0;i<pending.length;i+=ACCESS_BATCH_SIZE){
     const batch=pending.slice(i,i+ACCESS_BATCH_SIZE);
@@ -237,7 +245,7 @@ async function filterAccessible(candidates){
   const accessible=[];
   for(const c of candidates){
     const access=accessCache.get(candidateKey(c));
-    if(access){c.access=access;accessible.push(c);}
+    if(access&&access.bandGapM<=maxGapM){c.access=access;accessible.push(c);}
   }
   return accessible;
 }
@@ -269,7 +277,9 @@ async function enrichDriving(code,candidates){
 function accessHtml(c){
   const a=c.access;
   const icon=a.type==='parking'?'🅿️':'🛣️';
-  return `<span class="aircraft-access ${a.type}">${icon} ${escapeHtml(a.label)}</span><small>${a.offsetM.toFixed(0)} m dal centro della fascia · entro ±${Math.round(c.halfWidth)} m</small>`;
+  const gradeText=a.grade==='A'?'A · dentro fascia':a.grade==='B'?'B · compromesso ≤150 m':'C · esplorativo ≤500 m';
+  const offsetText=a.bandGapM<=.5?`${a.offsetM.toFixed(0)} m dal centro · dentro ±${Math.round(c.halfWidth)} m`:`${a.offsetM.toFixed(0)} m dal centro · ${a.bandGapM.toFixed(0)} m oltre fascia`;
+  return `<span class="aircraft-access ${a.type}">${icon} ${escapeHtml(a.label)}</span><span class="aircraft-access-grade grade-${a.grade.toLowerCase()}">${gradeText}</span><small>${offsetText}</small>`;
 }
 function drivingHtml(code,c){
   const o=ORIGINS[code],d=c.driving;
@@ -282,7 +292,8 @@ function drivingHtml(code,c){
 async function calculate(){
   if(!flightData) return;
   const serial=++calculationSerial;
-  const code=$('airport').value,days=Number($('days').value),bodyFilter=$('bodyFilter').value,movement=$('movementFilter').value;
+  const code=$('airport').value,days=Number($('days').value),bodyFilter=$('bodyFilter').value,movement=$('movementFilter').value,accessMode=$('accessMode').value;
+  const maxGapM=accessGapForMode(accessMode);
   const airport=AIRPORTS[code],bucket=flightData.airports?.[code];
   if(!bucket){return renderEmpty('Dati voli non disponibili per questo aeroporto.');}
   const start=new Date(),end=new Date(start.getTime()+days*86400000);
@@ -297,17 +308,17 @@ async function calculate(){
   const geometric=[];
   for(const flight of flights) for(const body of bodies) geometric.push(...candidatesForFlight(airport,flight,body));
   geometric.sort((a,b)=>a.eventTime-b.eventTime||b.score-a.score);
-  if(!geometric.length){render([],flights.length,bucket,days,code,0);return;}
+  if(!geometric.length){render([],flights.length,bucket,days,code,0,accessMode,maxGapM);return;}
 
   $('results').className='aircraft-loading';
-  $('results').innerHTML='<strong>Verifica accessibilità dei punti…</strong><br>Controllo strade e parcheggi OpenStreetMap dentro la fascia fotografica.';
+  $('results').innerHTML=`<strong>Verifica accessibilità dei punti…</strong><br>Controllo strade e parcheggi OpenStreetMap fino a ${maxGapM} m oltre la fascia fotografica nominale.`;
   try{
-    const accessible=await filterAccessible(geometric);
+    const accessible=await filterAccessible(geometric,maxGapM);
     if(serial!==calculationSerial)return;
     await enrichDriving(code,accessible);
     if(serial!==calculationSerial)return;
     accessible.sort((a,b)=>a.eventTime-b.eventTime||b.score-a.score);
-    render(accessible,flights.length,bucket,days,code,geometric.length);
+    render(accessible,flights.length,bucket,days,code,geometric.length,accessMode,maxGapM);
   }catch(e){
     if(serial!==calculationSerial)return;
     $('summary').classList.add('hidden');
@@ -315,12 +326,12 @@ async function calculate(){
     $('results').innerHTML=`<strong>Accessibilità non verificabile.</strong><br>OpenStreetMap/Overpass non ha risposto (${escapeHtml(e.message)}). Per rispettare il filtro richiesto non mostro eventi con punti non verificati.`;
   }
 }
-function render(candidates,flightCount,bucket,days,code,geometricCount){
+function render(candidates,flightCount,bucket,days,code,geometricCount,accessMode,maxGapM){
   $('summary').classList.remove('hidden');
-  $('summary').innerHTML=`<span><strong>${flightCount}</strong> movimenti analizzati</span><span><strong>${geometricCount}</strong> candidati geometrici</span><span><strong>${candidates.length}</strong> con accesso strada/parcheggio</span><span>Orizzonte: <strong>${days} gg</strong></span><span>Distanze da: <strong>${escapeHtml(ORIGINS[code].label)}</strong></span><span>Feed: <strong>${escapeHtml(bucket.status||'—')}</strong></span>`;
+  $('summary').innerHTML=`<span><strong>${flightCount}</strong> movimenti analizzati</span><span><strong>${geometricCount}</strong> candidati geometrici</span><span><strong>${candidates.length}</strong> accessibili</span><span>Accesso: <strong>${accessModeLabel(accessMode)}</strong>${maxGapM?` · ≤${maxGapM} m`:''}</span><span>Orizzonte: <strong>${days} gg</strong></span><span>Distanze da: <strong>${escapeHtml(ORIGINS[code].label)}</strong></span><span>Feed: <strong>${escapeHtml(bucket.status||'—')}</strong></span>`;
   if(!candidates.length){
     $('results').className='aircraft-empty';
-    const extra=flightCount?`Sono stati analizzati ${flightCount} movimenti: nessuna fascia fotografica candidata intercetta una strada adatta o un parcheggio mappato OpenStreetMap.`:'La cache non contiene movimenti validi nel periodo selezionato.';
+    const extra=flightCount?`Sono stati analizzati ${flightCount} movimenti: nessun punto pratico su strada/parcheggio rientra nella tolleranza selezionata (${accessModeLabel(accessMode)}). Prova il livello successivo.`:'La cache non contiene movimenti validi nel periodo selezionato.';
     $('results').innerHTML=`<strong>Nessun evento accessibile.</strong><br>${extra}`;return;
   }
   let lastDay='';
@@ -332,7 +343,7 @@ function render(candidates,flightCount,bucket,days,code,geometricCount){
     return `${separator}<tr><td class="aircraft-body ${bodyCls}">${bodyHtml(c)}</td><td class="aircraft-time">${dtText(c.eventTime)}</td><td class="aircraft-flight"><strong>${escapeHtml(f.flight||'—')}</strong><small>${escapeHtml(f.route||'')} ${escapeHtml(f.airline||'')}</small></td><td>${movementLabel(f.movement)}</td><td class="aircraft-time">${timeText(new Date(f.expected_iso||f.scheduled_iso))}</td><td class="aircraft-time"><strong>≈ ${timeText(c.eventTime)}</strong><small>${cf.unc}</small></td><td><strong>RWY ${c.runway.label}</strong>${c.runway.preferred?'<small>preferenziale</small>':''}</td><td class="aircraft-num">${c.body.alt.toFixed(1)}°${c.bodyKey==='moon'?`<small>fase ${c.body.illum.toFixed(0)}%</small>`:''}</td><td class="aircraft-access-cell">${accessHtml(c)}</td><td class="aircraft-spot"><strong>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</strong><small>${distanceKm({lat:AIRPORTS[code].lat,lon:AIRPORTS[code].lon},p).toFixed(1)} km dall’aeroporto · modello ${f.movement==='arrival'?'finale 3°':'salita 4°'}</small><a class="aircraft-map" href="${mapsUrl(c)}" target="_blank" rel="noopener">Apri punto ↗</a></td><td class="aircraft-drive">${drivingHtml(code,c)}</td><td class="aircraft-num">±${Math.round(c.halfWidth)} m</td><td><span class="aircraft-confidence ${cf.cls}">${cf.label}</span></td></tr>`;
   }).join('');
   $('results').className='aircraft-table-wrap';
-  $('results').innerHTML=`<table class="aircraft-table"><thead><tr><th>Corpo</th><th>Data / evento</th><th>Volo</th><th>Movimento</th><th>Orario volo</th><th>Transito stimato</th><th>Pista ipotizzata</th><th>Alt. corpo</th><th>Accesso verificato</th><th>Punto di scatto</th><th>Distanza auto</th><th>Fascia</th><th>Confidenza</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('results').innerHTML=`<table class="aircraft-table"><thead><tr><th>Corpo</th><th>Data / evento</th><th>Volo</th><th>Movimento</th><th>Orario volo</th><th>Transito stimato</th><th>Pista ipotizzata</th><th>Alt. corpo</th><th>Accesso verificato</th><th>Punto pratico</th><th>Distanza auto</th><th>Fascia</th><th>Confidenza</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function renderEmpty(text){$('summary').classList.add('hidden');$('results').className='aircraft-empty';$('results').textContent=text}
 async function load(){
