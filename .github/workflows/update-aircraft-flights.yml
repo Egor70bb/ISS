@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: "23 */2 * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "aircraft.html"
+      - "aircraft.js"
+      - "aircraft.css"
+      - ".github/workflows/update-aircraft-flights.yml"
 
 permissions:
   contents: write
@@ -18,6 +25,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Allinea menu Aerei
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for name in ['index.html','solar.html','planets.html','messier.html','comets.html']:
+              p=Path(name)
+              if not p.exists(): continue
+              s=p.read_text()
+              if 'href="aircraft.html"' in s: continue
+              needle='    <a href="comets.html">☄️ Comete</a>'
+              active='    <a class="active" href="comets.html">☄️ Comete</a>'
+              if needle in s:
+                  s=s.replace(needle,needle+'\n    <a href="aircraft.html">✈️ Aerei <span class="beta">BETA</span></a>',1)
+              elif active in s:
+                  s=s.replace(active,active+'\n    <a href="aircraft.html">✈️ Aerei <span class="beta">BETA</span></a>',1)
+              else:
+                  print(f'::warning::{name}: link Comete non trovato')
+                  continue
+              p.write_text(s)
+          PY
 
       - name: Installa parser
         run: pip install --quiet requests beautifulsoup4
@@ -91,7 +119,6 @@ jobs:
                       if day is None:
                           day=NOW.date()
                           h=int(tm.group(1))
-                          # Le board live spesso mostrano i primi voli del giorno successivo dopo sera.
                           if NOW.hour>=17 and h<12: day=(NOW+timedelta(days=1)).date()
                       out.append({'movement':movement,'flight':fl,'route':route_from_cells(cells,fl,airport),'scheduled_iso':iso(day,hhmm),'expected_iso':None,'status':'scheduled'})
               return out
@@ -99,7 +126,6 @@ jobs:
           def dedupe(items):
               seen=set();out=[]
               for f in sorted(items,key=lambda x:(x['scheduled_iso'],x['movement'],x.get('flight',''))):
-                  # Codeshare: per il planner basta un solo movimento alla stessa ora/rotta.
                   key=(f['movement'],f['scheduled_iso'],(f.get('route') or '').upper())
                   if key in seen: continue
                   seen.add(key);out.append(f)
@@ -116,20 +142,17 @@ jobs:
               return out
 
           airports={}
-
-          # TRS: board ufficiale Trieste Airport. Manteniamo anche eventuali dati futuri già acquisiti.
           trs_prev=keep_recent(old.get('airports',{}).get('TRS',{}).get('flights',[]))
           try:
               html=get('https://triesteairport.it/en/airport/flights-and-destinations/live-flight-information/')
               fresh=rows_from_html(html,'TRS')
+              if not fresh: raise RuntimeError('nessuna riga riconosciuta')
               merged=dedupe(trs_prev+fresh)
               airports['TRS']={'status':f'ufficiale Trieste Airport · {len(fresh)} righe live','source':'https://triesteairport.it/en/airport/flights-and-destinations/live-flight-information/','flights':merged}
-              if not fresh: raise RuntimeError('nessuna riga riconosciuta')
           except Exception as e:
               airports['TRS']={'status':f'ultimo dato valido · fonte non disponibile ({type(e).__name__})','source':'Trieste Airport','flights':trs_prev}
               print(f'::warning::TRS: {e}')
 
-          # LIN: pagine ufficiali Linate con filtro data. Se il sito blocca il runner, preserviamo la cache.
           lin_prev=keep_recent(old.get('airports',{}).get('LIN',{}).get('flights',[]))
           lin_fresh=[]; hashes=[]
           try:
@@ -141,7 +164,6 @@ jobs:
                       html=get(url,params=params)
                       hashes.append((day.isoformat(),movement,hashlib.sha1(html.encode()).hexdigest()))
                       lin_fresh.extend(rows_from_html(html,'LIN',day,movement))
-              # Se tutte le pagine sono identiche, il filtro data è stato ignorato/bloccato: non duplicare voli.
               if len(set(h for _,_,h in hashes))<=2 and len(hashes)>=6:
                   raise RuntimeError('filtro data Linate non confermato')
               lin_fresh=dedupe(lin_fresh)
@@ -160,12 +182,12 @@ jobs:
 
       - name: Pubblica solo se cambia
         run: |
-          if git diff --quiet -- data/aircraft-flights.json; then
-            echo "Cache voli invariata"
+          if git diff --quiet; then
+            echo "Nessuna modifica"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/aircraft-flights.json
-          git commit -m "Aggiorna orari Aerei"
+          git add index.html solar.html planets.html messier.html comets.html data/aircraft-flights.json
+          git commit -m "Aggiorna pagina Aerei e orari voli"
           git push
