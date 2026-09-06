@@ -37,10 +37,11 @@ jobs:
               if 'href="aircraft.html"' in s: continue
               needle='    <a href="comets.html">☄️ Comete</a>'
               active='    <a class="active" href="comets.html">☄️ Comete</a>'
+              link='    <a href="aircraft.html">✈️ Aerei</a>'
               if needle in s:
-                  s=s.replace(needle,needle+'\n    <a href="aircraft.html">✈️ Aerei <span class="beta">BETA</span></a>',1)
+                  s=s.replace(needle,needle+'\n'+link,1)
               elif active in s:
-                  s=s.replace(active,active+'\n    <a href="aircraft.html">✈️ Aerei <span class="beta">BETA</span></a>',1)
+                  s=s.replace(active,active+'\n'+link,1)
               else:
                   print(f'::warning::{name}: link Comete non trovato')
                   continue
