@@ -1,0 +1,194 @@
+name: Aggiorna orari Aerei
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "aircraft.html"
+      - "aircraft.js"
+      - "aircraft.css"
+      - ".github/workflows/update-aircraft-flights.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-aircraft-flights
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Allinea menu Aerei
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for name in ['index.html','solar.html','planets.html','messier.html','comets.html']:
+              p=Path(name)
+              if not p.exists(): continue
+              s=p.read_text()
+              if 'href="aircraft.html"' in s: continue
+              needle='    <a href="comets.html">☄️ Comete</a>'
+              active='    <a class="active" href="comets.html">☄️ Comete</a>'
+              link='    <a href="aircraft.html">✈️ Aerei</a>'
+              if needle in s:
+                  s=s.replace(needle,needle+'\n'+link,1)
+              elif active in s:
+                  s=s.replace(active,active+'\n'+link,1)
+              else:
+                  print(f'::warning::{name}: link Comete non trovato')
+                  continue
+              p.write_text(s)
+          PY
+
+      - name: Installa parser
+        run: pip install --quiet requests beautifulsoup4
+
+      - name: Aggiorna cache voli
+        run: |
+          python - <<'PY'
+          import json,re,hashlib
+          from pathlib import Path
+          from datetime import datetime,timedelta
+          from zoneinfo import ZoneInfo
+          import requests
+          from bs4 import BeautifulSoup
+
+          TZ=ZoneInfo('Europe/Rome')
+          NOW=datetime.now(TZ)
+          OUT=Path('data/aircraft-flights.json')
+          UA={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36'}
+          old={"airports":{}}
+          if OUT.exists():
+              try: old=json.loads(OUT.read_text())
+              except Exception: pass
+
+          flight_re=re.compile(r'\b([A-Z0-9]{2,3})\s?([0-9]{2,4}[A-Z]?)\b',re.I)
+          time_re=re.compile(r'\b([01]?\d|2[0-3]):([0-5]\d)\b')
+
+          def get(url,params=None):
+              r=requests.get(url,params=params,headers=UA,timeout=35)
+              r.raise_for_status()
+              return r.text
+
+          def iso(day,hhmm):
+              h,m=map(int,hhmm.split(':'))
+              return datetime(day.year,day.month,day.day,h,m,tzinfo=TZ).isoformat()
+
+          def clean_flight(s):
+              m=flight_re.search(s.upper())
+              if not m: return None
+              prefix,num=m.groups()
+              if prefix in {'RWY','UTC','CEST','CET'}: return None
+              return f'{prefix}{num}'
+
+          def route_from_cells(cells,flight,airport):
+              skip={'SCHEDULED','EXPECTED','ESTIMATED','LANDED','ARRIVED','DELAYED','CANCELLED','ON TIME','CHECK-IN OPEN','CHECK-IN CLOSED','NEW GATE'}
+              for c in cells:
+                  u=c.strip().upper()
+                  if not u or u==flight or time_re.fullmatch(u) or u in skip or airport in u: continue
+                  if 2<=len(c.strip())<=40 and not flight_re.fullmatch(u): return c.strip()
+              return ''
+
+          def rows_from_html(html,airport,date_hint=None,movement_force=None):
+              soup=BeautifulSoup(html,'html.parser')
+              out=[]
+              for table in soup.find_all('table'):
+                  heading=table.find_previous(['h1','h2','h3','h4'])
+                  ht=(heading.get_text(' ',strip=True).lower() if heading else '')
+                  movement=movement_force
+                  if not movement:
+                      if 'arrival' in ht or 'arriv' in ht: movement='arrival'
+                      elif 'departure' in ht or 'partenz' in ht: movement='departure'
+                  if not movement: continue
+                  for tr in table.find_all('tr'):
+                      cells=[x.get_text(' ',strip=True) for x in tr.find_all(['td','th'])]
+                      if len(cells)<2: continue
+                      text=' | '.join(cells)
+                      tm=time_re.search(text)
+                      fl=clean_flight(text)
+                      if not tm or not fl: continue
+                      hhmm=f'{int(tm.group(1)):02d}:{tm.group(2)}'
+                      day=date_hint
+                      if day is None:
+                          day=NOW.date()
+                          h=int(tm.group(1))
+                          if NOW.hour>=17 and h<12: day=(NOW+timedelta(days=1)).date()
+                      out.append({'movement':movement,'flight':fl,'route':route_from_cells(cells,fl,airport),'scheduled_iso':iso(day,hhmm),'expected_iso':None,'status':'scheduled'})
+              return out
+
+          def dedupe(items):
+              seen=set();out=[]
+              for f in sorted(items,key=lambda x:(x['scheduled_iso'],x['movement'],x.get('flight',''))):
+                  key=(f['movement'],f['scheduled_iso'],(f.get('route') or '').upper())
+                  if key in seen: continue
+                  seen.add(key);out.append(f)
+              return out
+
+          def keep_recent(items):
+              lo=NOW.replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(hours=1)
+              hi=lo+timedelta(days=4)
+              out=[]
+              for f in items:
+                  try: t=datetime.fromisoformat(f['scheduled_iso'])
+                  except Exception: continue
+                  if lo<=t<hi: out.append(f)
+              return out
+
+          airports={}
+          trs_prev=keep_recent(old.get('airports',{}).get('TRS',{}).get('flights',[]))
+          try:
+              html=get('https://triesteairport.it/en/airport/flights-and-destinations/live-flight-information/')
+              fresh=rows_from_html(html,'TRS')
+              if not fresh: raise RuntimeError('nessuna riga riconosciuta')
+              merged=dedupe(trs_prev+fresh)
+              airports['TRS']={'status':f'ufficiale Trieste Airport · {len(fresh)} righe live','source':'https://triesteairport.it/en/airport/flights-and-destinations/live-flight-information/','flights':merged}
+          except Exception as e:
+              airports['TRS']={'status':f'ultimo dato valido · fonte non disponibile ({type(e).__name__})','source':'Trieste Airport','flights':trs_prev}
+              print(f'::warning::TRS: {e}')
+
+          lin_prev=keep_recent(old.get('airports',{}).get('LIN',{}).get('flights',[]))
+          lin_fresh=[]; hashes=[]
+          try:
+              for off in range(4):
+                  day=(NOW+timedelta(days=off)).date()
+                  for movement,path,code in [('departure','departures','D'),('arrival','arrivals','A')]:
+                      url=f'https://www.milanolinate-airport.com/en/flights/{path}'
+                      params={'airportReferenceIata':'lin','dateFrom':f'{day.isoformat()} 00:00','dateTo':f'{day.isoformat()} 23:59','loadingType':'P','mfFlightType':'P','movementType':code}
+                      html=get(url,params=params)
+                      hashes.append((day.isoformat(),movement,hashlib.sha1(html.encode()).hexdigest()))
+                      lin_fresh.extend(rows_from_html(html,'LIN',day,movement))
+              if len(set(h for _,_,h in hashes))<=2 and len(hashes)>=6:
+                  raise RuntimeError('filtro data Linate non confermato')
+              lin_fresh=dedupe(lin_fresh)
+              if not lin_fresh: raise RuntimeError('nessuna riga riconosciuta')
+              merged=dedupe(lin_prev+lin_fresh)
+              airports['LIN']={'status':f'ufficiale Milano Linate · {len(lin_fresh)} righe','source':'https://www.milanolinate-airport.com/en/flights/','flights':merged}
+          except Exception as e:
+              airports['LIN']={'status':f'ultimo dato valido · fonte non disponibile ({type(e).__name__})','source':'Milano Linate Airport','flights':lin_prev}
+              print(f'::warning::LIN: {e}')
+
+          payload={'generated_at':NOW.isoformat(),'model':'public airport schedule cache; no paid API','airports':airports}
+          OUT.parent.mkdir(parents=True,exist_ok=True)
+          OUT.write_text(json.dumps(payload,ensure_ascii=False,separators=(',',':'))+'\n')
+          print('TRS',len(airports['TRS']['flights']),'LIN',len(airports['LIN']['flights']))
+          PY
+
+      - name: Pubblica solo se cambia
+        run: |
+          if git diff --quiet; then
+            echo "Nessuna modifica"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html solar.html planets.html messier.html comets.html data/aircraft-flights.json
+          git commit -m "Aggiorna pagina Aerei e orari voli"
+          git push

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Planner sperimentale per fotografare aerei davanti a Sole o Luna vicino a Trieste Airport e Milano Linate.">
+  <title>Aircraft Sun & Moon Transit Planner</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="aircraft.css">
+</head>
+<body class="aircraft-page">
+  <nav class="page-switch" aria-label="Selezione pagina">
+    <a href="index.html">🌙 Transiti lunari</a>
+    <a href="solar.html">☀️ Transiti solari</a>
+    <a href="planets.html">🪐 Pianeti</a>
+    <a href="messier.html">✨ Messier</a>
+    <a href="comets.html">☄️ Comete</a>
+    <a class="active" href="aircraft.html">✈️ Aerei <span class="beta">BETA</span></a>
+  </nav>
+
+  <header class="hero aircraft-hero">
+    <div class="eyebrow">EXPERIMENTAL PHOTOGRAPHY PLANNER</div>
+    <h1>Aerei <span>× Sole / Luna</span></h1>
+    <p>Stima opportunità fotografiche vicino all'aeroporto combinando orari di arrivo/partenza, asse pista e posizione apparente di Sole e Luna.</p>
+  </header>
+
+  <main class="aircraft-main">
+    <section class="panel">
+      <div class="section-title"><div><span class="step">1</span><h2>Ricerca</h2></div><span class="aircraft-badge">BETA</span></div>
+      <div class="aircraft-fields">
+        <label>Aeroporto
+          <select id="airport">
+            <option value="TRS">Ronchi dei Legionari · TRS / LIPQ</option>
+            <option value="LIN">Milano Linate · LIN / LIML</option>
+          </select>
+          <small>Per ora sono disponibili solo questi due aeroporti.</small>
+        </label>
+        <label>Orizzonte
+          <select id="days">
+            <option value="1">Prossimo 1 giorno</option>
+            <option value="2">Prossimi 2 giorni</option>
+            <option value="3" selected>Prossimi 3 giorni</option>
+          </select>
+          <small>A partire da oggi, ora locale italiana.</small>
+        </label>
+        <label>Corpo celeste
+          <select id="bodyFilter">
+            <option value="both" selected>Sole + Luna</option>
+            <option value="sun">Solo Sole</option>
+            <option value="moon">Solo Luna</option>
+          </select>
+          <small>La Luna viene ignorata se troppo bassa o quasi nuova.</small>
+        </label>
+        <label>Movimento
+          <select id="movementFilter">
+            <option value="both" selected>Arrivi + partenze</option>
+            <option value="arrival">Solo arrivi</option>
+            <option value="departure">Solo partenze</option>
+          </select>
+          <small>Gli arrivi hanno in genere una geometria più prevedibile.</small>
+        </label>
+      </div>
+      <div class="controls"><button id="calculateButton" class="primary" type="button">Cerca opportunità</button></div>
+      <div id="message" class="message hidden" role="status"></div>
+      <div class="aircraft-assumption">
+        <strong>Modello di test</strong>
+        <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><div><span class="step">2</span><h2>Eventi candidati</h2></div><span id="dataAge" class="aircraft-data-age">Dati voli: —</span></div>
+      <div id="summary" class="aircraft-summary hidden"></div>
+      <div id="results" class="aircraft-loading">Caricamento orari voli…</div>
+    </section>
+
+    <section class="notice aircraft-warning">
+      <strong>Non è una previsione aeronautica</strong>
+      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. Il punto Maps serve per sopralluogo: fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate o corsie di emergenza.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>100% gratuito · Nessuna API a pagamento · Calcolo geometrico nel browser</p>
+    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aggiornata da fonti aeroportuali pubbliche quando disponibili</p>
+  </footer>
+
+  <script type="module" src="aircraft.js"></script>
+</body>
+</html>
