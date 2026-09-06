@@ -5,6 +5,7 @@ const DATA_URL='./data/aircraft-flights.json';
 const DEG=Math.PI/180;
 const EARTH_KM=6371.0088;
 const BODY_RADIUS={sun:0.2666,moon:0.2725};
+const VALID_FLIGHT=/^[A-Z][A-Z0-9]{1,2}[0-9]{2,5}[A-Z]?$/i;
 
 const AIRPORTS={
   TRS:{name:'Ronchi dei Legionari',iata:'TRS',icao:'LIPQ',lat:45.827862,lon:13.466672,elev:12,
@@ -14,8 +15,8 @@ const AIRPORTS={
     ]},
   LIN:{name:'Milano Linate',iata:'LIN',icao:'LIML',lat:45.445099,lon:9.276740,elev:108,
     runways:[
-      {label:'36',heading:354.3,threshold:[45.434306,9.278228],far:[45.456214,9.275867],preference:1.35,preferred:true},
-      {label:'18',heading:174.3,threshold:[45.456214,9.275867],far:[45.434306,9.278228],preference:.7}
+      {label:'35',heading:354.3,threshold:[45.434306,9.278228],far:[45.456214,9.275867],preference:1.35,preferred:true},
+      {label:'17',heading:174.3,threshold:[45.456214,9.275867],far:[45.434306,9.278228],preference:.7}
     ]}
 };
 
@@ -122,10 +123,10 @@ function calculate(){
   const start=new Date(),end=new Date(start.getTime()+days*86400000);
   let flights=(bucket.flights||[]).filter(f=>{
     const t=new Date(f.expected_iso||f.scheduled_iso);
-    return t>=start&&t<end&&(movement==='both'||f.movement===movement);
+    return t>=start&&t<end&&VALID_FLIGHT.test(f.flight||'')&&(movement==='both'||f.movement===movement);
   });
   const dedupe=new Map();
-  for(const f of flights){const key=`${f.movement}|${f.scheduled_iso}|${f.route||''}`;if(!dedupe.has(key)) dedupe.set(key,f)}
+  for(const f of flights){const key=`${f.movement}|${f.scheduled_iso}|${f.flight||''}`;if(!dedupe.has(key)) dedupe.set(key,f)}
   flights=[...dedupe.values()];
   const bodies=bodyFilter==='both'?['sun','moon']:[bodyFilter];
   const candidates=[];
@@ -138,7 +139,7 @@ function render(candidates,flightCount,bucket,days){
   $('summary').innerHTML=`<span><strong>${flightCount}</strong> movimenti analizzati</span><span><strong>${candidates.length}</strong> candidati mostrati</span><span>Orizzonte: <strong>${days} gg</strong></span><span>Feed: <strong>${escapeHtml(bucket.status||'—')}</strong></span>`;
   if(!candidates.length){
     $('results').className='aircraft-empty';
-    const extra=flightCount?`Sono stati analizzati ${flightCount} movimenti, ma nessuno produce un punto teorico entro 16 km con Sole/Luna sufficientemente alti.`:'La cache non contiene movimenti nel periodo selezionato.';
+    const extra=flightCount?`Sono stati analizzati ${flightCount} movimenti, ma nessuno produce un punto teorico entro 16 km con Sole/Luna sufficientemente alti.`:'La cache non contiene movimenti validi nel periodo selezionato.';
     $('results').innerHTML=`<strong>Nessun evento candidato.</strong><br>${extra}`;return;
   }
   $('results').className='aircraft-table-wrap';
