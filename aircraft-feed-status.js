@@ -39,9 +39,12 @@ function explainEmptyFeed(){
   const results=document.getElementById('results');
   const summary=document.getElementById('summary');
   if(!results) return;
+  const marker=`${code}|${status}`;
+  if(results.dataset.feedExplained===marker) return;
   const text=(results.textContent||'').toLowerCase();
   if(!text.includes('nessun')&&!text.includes('0')&&!text.includes('completato')) return;
   if(summary) summary.classList.add('hidden');
+  results.dataset.feedExplained=marker;
   results.className='aircraft-error';
   results.innerHTML=`<strong>Feed voli ${AIRPORT_LABEL[code]||code} non disponibile.</strong><br>Nessun movimento è disponibile da analizzare: quindi “0 eventi” non è un risultato geometrico. Stato feed: ${status.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}.`;
 }
@@ -55,8 +58,8 @@ async function loadFeedStatus(){
     refresh();
     const results=document.getElementById('results');
     if(results) new MutationObserver(()=>refresh()).observe(results,{childList:true,subtree:true,characterData:true});
-    document.getElementById('airport')?.addEventListener('change',refresh);
-    document.getElementById('calculateButton')?.addEventListener('click',()=>setTimeout(refresh,120));
+    document.getElementById('airport')?.addEventListener('change',()=>{if(results)delete results.dataset.feedExplained;refresh();});
+    document.getElementById('calculateButton')?.addEventListener('click',()=>{if(results)delete results.dataset.feedExplained;setTimeout(refresh,120);});
     setInterval(updateAge,60000);
   }catch(_){/* aircraft.js mostra già gli errori principali */}
 }
