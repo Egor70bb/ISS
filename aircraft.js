@@ -4,6 +4,8 @@ const $=id=>document.getElementById(id);
 const DATA_URL='./data/aircraft-flights.json';
 const DEG=Math.PI/180;
 const EARTH_KM=6371.0088;
+const AU_KM=149597870.7;
+const MOON_RADIUS_KM=1737.4;
 const BODY_RADIUS={sun:0.2666,moon:0.2725};
 const VALID_FLIGHT=/^[A-Z][A-Z0-9]{1,2}[0-9]{2,5}[A-Z]?$/i;
 
@@ -46,9 +48,16 @@ function bodyHorizontal(bodyKey,date,lat,lon,elev){
   const body=bodyKey==='sun'?Astronomy.Body.Sun:Astronomy.Body.Moon;
   const eq=Astronomy.Equator(body,date,observer,true,true);
   const hor=Astronomy.Horizon(date,observer,eq.ra,eq.dec,'normal');
-  let illum=100;
-  if(bodyKey==='moon') illum=Astronomy.Illumination(Astronomy.Body.Moon,date).phase_fraction*100;
-  return {alt:hor.altitude,az:hor.azimuth,illum};
+  let illum=100,diameterArcmin=null;
+  if(bodyKey==='moon'){
+    illum=Astronomy.Illumination(Astronomy.Body.Moon,date).phase_fraction*100;
+    const moon=Astronomy.GeoMoon(date);
+    const distanceAu=Math.hypot(moon.x,moon.y,moon.z);
+    if(Number.isFinite(distanceAu)&&distanceAu>0){
+      diameterArcmin=2*Math.atan(MOON_RADIUS_KM/(distanceAu*AU_KM))*180/Math.PI*60;
+    }
+  }
+  return {alt:hor.altitude,az:hor.azimuth,illum,diameterArcmin};
 }
 function theoreticalSpot(airport,runway,flight,bodyKey,dKm){
   const base=new Date(flight.expected_iso||flight.scheduled_iso);
@@ -83,7 +92,8 @@ function theoreticalSpot(airport,runway,flight,bodyKey,dKm){
   const slant=Math.hypot(h,groundRange);
   const airportDist=distanceKm({lat:airport.lat,lon:airport.lon},spot);
   if(airportDist<.8||airportDist>16) return null;
-  const halfWidth=Math.max(8,slant*Math.tan(rad(BODY_RADIUS[bodyKey])));
+  const angularRadius=bodyKey==='moon'&&Number.isFinite(body.diameterArcmin)?body.diameterArcmin/120:BODY_RADIUS[bodyKey];
+  const halfWidth=Math.max(8,slant*Math.tan(rad(angularRadius)));
   const bodyAltScore=Math.max(0,30-Math.abs(body.alt-30));
   const distanceScore=Math.max(0,25-Math.abs(airportDist-6)*3);
   const movementScore=arrival?16:5;
@@ -108,10 +118,23 @@ function confidence(c){
   if(c.flight.movement==='arrival') return {label:'Media',cls:'medium',unc:'±10–15 min'};
   return {label:'Bassa',cls:'low',unc:'±15–25 min'};
 }
-function bodyLabel(k){return k==='sun'?'☀️ Sole':'🌙 Luna'}
+function moonVisibility(body){
+  if(body.alt>=30&&body.illum>=40) return 'Alta';
+  if(body.alt>=20&&body.illum>=25) return 'Buona';
+  if(body.alt>=10&&body.illum>=15) return 'Discreta';
+  return 'Bassa';
+}
+function moonBodyHtml(c){
+  const diameter=Number.isFinite(c.body.diameterArcmin)?`${c.body.diameterArcmin.toFixed(1)}′`:'—';
+  const visibility=moonVisibility(c.body);
+  return `<span class="aircraft-moon-hover" tabindex="0" aria-label="Dettagli Luna: diametro apparente ${diameter}, illuminazione ${c.body.illum.toFixed(0)}%, altezza ${c.body.alt.toFixed(1)} gradi, visibilità ${visibility}">🌙 Luna<span class="aircraft-moon-tooltip" role="tooltip"><strong>Luna al transito</strong><span>Diametro apparente <b>${diameter}</b></span><span>Illuminazione <b>${c.body.illum.toFixed(0)}%</b></span><span>Altezza <b>${c.body.alt.toFixed(1)}°</b></span><span>Visibilità <b>${visibility}</b></span><small>Visibilità = stima geometrica da altezza e fase, non meteo.</small></span></span>`;
+}
+function bodyHtml(c){return c.bodyKey==='sun'?'☀️ Sole':moonBodyHtml(c)}
 function movementLabel(v){return v==='arrival'?'Arrivo':'Partenza'}
 function dtText(d){return d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
 function timeText(d){return d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}
+function dayKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function dayLabel(d){const s=d.toLocaleDateString('it-IT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});return s.charAt(0).toUpperCase()+s.slice(1)}
 function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function mapsUrl(c){return `https://www.google.com/maps/search/?api=1&query=${c.spot.lat.toFixed(6)},${c.spot.lon.toFixed(6)}`}
 
@@ -131,8 +154,8 @@ function calculate(){
   const bodies=bodyFilter==='both'?['sun','moon']:[bodyFilter];
   const candidates=[];
   for(const flight of flights) for(const body of bodies) candidates.push(...candidatesForFlight(airport,flight,body));
-  candidates.sort((a,b)=>b.score-a.score);
-  render(candidates.slice(0,24),flights.length,bucket,days);
+  candidates.sort((a,b)=>a.eventTime-b.eventTime||b.score-a.score);
+  render(candidates,flights.length,bucket,days);
 }
 function render(candidates,flightCount,bucket,days){
   $('summary').classList.remove('hidden');
@@ -142,11 +165,16 @@ function render(candidates,flightCount,bucket,days){
     const extra=flightCount?`Sono stati analizzati ${flightCount} movimenti, ma nessuno produce un punto teorico entro 16 km con Sole/Luna sufficientemente alti.`:'La cache non contiene movimenti validi nel periodo selezionato.';
     $('results').innerHTML=`<strong>Nessun evento candidato.</strong><br>${extra}`;return;
   }
-  $('results').className='aircraft-table-wrap';
-  $('results').innerHTML=`<table class="aircraft-table"><thead><tr><th>Corpo</th><th>Data / evento</th><th>Volo</th><th>Movimento</th><th>Orario volo</th><th>Transito stimato</th><th>Pista ipotizzata</th><th>Alt. corpo</th><th>Punto teorico</th><th>Fascia</th><th>Confidenza</th></tr></thead><tbody>${candidates.map(c=>{
+  let lastDay='';
+  const rows=candidates.map(c=>{
     const cf=confidence(c),f=c.flight,bodyCls=c.bodyKey==='sun'?'sun':'moon';
-    return `<tr><td class="aircraft-body ${bodyCls}">${bodyLabel(c.bodyKey)}</td><td class="aircraft-time">${dtText(c.eventTime)}</td><td class="aircraft-flight"><strong>${escapeHtml(f.flight||'—')}</strong><small>${escapeHtml(f.route||'')} ${escapeHtml(f.airline||'')}</small></td><td>${movementLabel(f.movement)}</td><td class="aircraft-time">${timeText(new Date(f.expected_iso||f.scheduled_iso))}</td><td class="aircraft-time"><strong>≈ ${timeText(c.eventTime)}</strong><small>${cf.unc}</small></td><td><strong>RWY ${c.runway.label}</strong>${c.runway.preferred?'<small>preferenziale</small>':''}</td><td class="aircraft-num">${c.body.alt.toFixed(1)}°${c.bodyKey==='moon'?`<small>fase ${c.body.illum.toFixed(0)}%</small>`:''}</td><td class="aircraft-spot"><strong>${c.spot.lat.toFixed(5)}, ${c.spot.lon.toFixed(5)}</strong><small>${c.airportDist.toFixed(1)} km dall’aeroporto · modello ${f.movement==='arrival'?'finale 3°':'salita 4°'}</small><a class="aircraft-map" href="${mapsUrl(c)}" target="_blank" rel="noopener">Apri in Google Maps ↗</a></td><td class="aircraft-num">±${Math.round(c.halfWidth)} m</td><td><span class="aircraft-confidence ${cf.cls}">${cf.label}</span></td></tr>`;
-  }).join('')}</tbody></table>`;
+    const key=dayKey(c.eventTime);
+    const separator=key!==lastDay?`<tr class="aircraft-day-row"><td colspan="11">${dayLabel(c.eventTime)}</td></tr>`:'';
+    lastDay=key;
+    return `${separator}<tr><td class="aircraft-body ${bodyCls}">${bodyHtml(c)}</td><td class="aircraft-time">${dtText(c.eventTime)}</td><td class="aircraft-flight"><strong>${escapeHtml(f.flight||'—')}</strong><small>${escapeHtml(f.route||'')} ${escapeHtml(f.airline||'')}</small></td><td>${movementLabel(f.movement)}</td><td class="aircraft-time">${timeText(new Date(f.expected_iso||f.scheduled_iso))}</td><td class="aircraft-time"><strong>≈ ${timeText(c.eventTime)}</strong><small>${cf.unc}</small></td><td><strong>RWY ${c.runway.label}</strong>${c.runway.preferred?'<small>preferenziale</small>':''}</td><td class="aircraft-num">${c.body.alt.toFixed(1)}°${c.bodyKey==='moon'?`<small>fase ${c.body.illum.toFixed(0)}%</small>`:''}</td><td class="aircraft-spot"><strong>${c.spot.lat.toFixed(5)}, ${c.spot.lon.toFixed(5)}</strong><small>${c.airportDist.toFixed(1)} km dall’aeroporto · modello ${f.movement==='arrival'?'finale 3°':'salita 4°'}</small><a class="aircraft-map" href="${mapsUrl(c)}" target="_blank" rel="noopener">Apri in Google Maps ↗</a></td><td class="aircraft-num">±${Math.round(c.halfWidth)} m</td><td><span class="aircraft-confidence ${cf.cls}">${cf.label}</span></td></tr>`;
+  }).join('');
+  $('results').className='aircraft-table-wrap';
+  $('results').innerHTML=`<table class="aircraft-table"><thead><tr><th>Corpo</th><th>Data / evento</th><th>Volo</th><th>Movimento</th><th>Orario volo</th><th>Transito stimato</th><th>Pista ipotizzata</th><th>Alt. corpo</th><th>Punto teorico</th><th>Fascia</th><th>Confidenza</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function renderEmpty(text){$('summary').classList.add('hidden');$('results').className='aircraft-empty';$('results').textContent=text}
 async function load(){
