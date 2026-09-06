@@ -65,8 +65,9 @@
       <div class="aircraft-assumption">
         <strong>Modello di test</strong>
         <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
+        <p><b>Confidenza:</b> indica la robustezza qualitativa della previsione geometrica, non la probabilità matematica del transito. Gli arrivi sono più prevedibili delle partenze; un arrivo sulla pista preferenziale riceve confidenza maggiore.</p>
         <p><b>Nessun filtro su campi/boschi:</b> tutti i candidati geometrici vengono mostrati. Il link <b>Apri punto</b> consente di verificare personalmente su Google Maps se il luogo è praticabile.</p>
-        <p><b>Distanza:</b> viene mostrata soltanto la distanza in linea d'aria dal riferimento iniziale — <b>Terzo d'Aquileia</b> per Ronchi e <b>Piazzale Loreto</b> per Linate. Il pulsante Indicazioni auto apre Google Maps ma non viene calcolato dalla pagina.</p>
+        <p><b>Distanza stradale:</b> la tabella appare subito; successivamente una singola elaborazione di routing aggiorna la distanza e il tempo in auto da <b>Terzo d'Aquileia</b> per Ronchi e da <b>Piazzale Loreto</b> per Linate. Se il servizio non risponde entro pochi secondi, la geometria resta disponibile e la distanza viene indicata come non disponibile.</p>
       </div>
     </section>
 
@@ -84,9 +85,10 @@
 
   <footer>
     <p>100% gratuito · Nessuna API a pagamento · Calcolo geometrico nel browser</p>
-    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale aggiornata automaticamente</p>
+    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale aggiornata automaticamente · Distanze stradali: OSRM / OpenStreetMap</p>
   </footer>
 
   <script type="module" src="aircraft-simple.js"></script>
+  <script type="module" src="aircraft-road.js"></script>
 </body>
 </html>
