@@ -21,12 +21,12 @@
   <header class="hero aircraft-hero">
     <div class="eyebrow">EXPERIMENTAL PHOTOGRAPHY PLANNER</div>
     <h1>Aerei <span>× Sole / Luna</span></h1>
-    <p>Mostra tutti gli eventi geometrici candidati e permette poi di filtrarli in base alla distanza di viaggio e alla vicinanza del punto teorico a una strada o a un parcheggio.</p>
+    <p>Mostra rapidamente tutti gli eventi geometrici candidati. Il punto teorico viene aperto direttamente in Google Maps: la verifica pratica di strada, parcheggio e accessibilità resta all'utente.</p>
   </header>
 
   <main class="aircraft-main">
     <section class="panel">
-      <div class="section-title"><div><span class="step">1</span><h2>Ricerca e filtri</h2></div><span class="aircraft-badge">BETA</span></div>
+      <div class="section-title"><div><span class="step">1</span><h2>Ricerca</h2></div><span class="aircraft-badge">BETA</span></div>
       <div class="aircraft-fields">
         <label>Aeroporto
           <select id="airport">
@@ -59,35 +59,14 @@
           </select>
           <small>Gli arrivi hanno in genere una geometria più prevedibile.</small>
         </label>
-        <label>Distanza da strada / parcheggio
-          <select id="roadDistanceFilter">
-            <option value="all" selected>Tutti</option>
-            <option value="near">≤ 100 m</option>
-            <option value="mid">101–500 m</option>
-            <option value="far">&gt; 500 m / non rilevato</option>
-          </select>
-          <small>Misurata dal punto teorico di scatto.</small>
-        </label>
-        <label>Distanza dal punto di partenza
-          <select id="originDistanceFilter">
-            <option value="all" selected>Tutte</option>
-            <option value="10">≤ 10 km</option>
-            <option value="20">≤ 20 km</option>
-            <option value="30">≤ 30 km</option>
-            <option value="50">≤ 50 km</option>
-            <option value="100">≤ 100 km</option>
-          </select>
-          <small>Ronchi: Terzo d'Aquileia · Linate: Piazzale Loreto.</small>
-        </label>
       </div>
       <div class="controls"><button id="calculateButton" class="primary" type="button">Cerca opportunità</button></div>
       <div id="message" class="message hidden" role="status"></div>
       <div class="aircraft-assumption">
         <strong>Modello di test</strong>
         <p><b>Arrivi:</b> finale nominale 3°. <b>Partenze:</b> salita iniziale nominale 4° e quindi confidenza inferiore. L'orario di tabellone non coincide con il passaggio sulla pista: la pagina applica un offset operativo e mostra una tolleranza temporale. La pista realmente in uso dipende da vento e ATC.</p>
-        <p><b>Tutti gli eventi:</b> nessun candidato geometrico viene eliminato perché cade in un campo, bosco o zona lontana dalla strada. OpenStreetMap viene usato soltanto per misurare la distanza dal punto teorico alla strada/parcheggio più vicino e per consentire i filtri logistici.</p>
-        <p><b>Elaborazione progressiva:</b> gli eventi geometrici vengono mostrati subito; strada/parcheggio e distanza auto si completano a blocchi. Se OSM/OSRM non rispondono entro il timeout, l'evento resta visibile e viene marcato come non verificato o fallback.</p>
-        <p><b>Distanza auto:</b> per Ronchi è calcolata da <b>Terzo d'Aquileia · Comune</b>; per Linate da <b>Piazzale Loreto · Milano</b>. Quando esiste un accesso OSM, il routing punta a quel punto raggiungibile in auto; in caso contrario viene indicata soltanto una stima di fallback.</p>
+        <p><b>Nessun filtro su campi/boschi:</b> tutti i candidati geometrici vengono mostrati. Il link <b>Apri punto</b> consente di verificare personalmente su Google Maps se il luogo è praticabile.</p>
+        <p><b>Distanza:</b> viene mostrata soltanto la distanza in linea d'aria dal riferimento iniziale — <b>Terzo d'Aquileia</b> per Ronchi e <b>Piazzale Loreto</b> per Linate. Il pulsante Indicazioni auto apre Google Maps ma non viene calcolato dalla pagina.</p>
       </div>
     </section>
 
@@ -99,16 +78,15 @@
 
     <section class="notice aircraft-warning">
       <strong>Non è una previsione aeronautica né un'indicazione di sosta</strong>
-      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. La presenza di una strada o di un parcheggio vicino non garantisce che sia possibile fermarsi o sostare. Fermati soltanto dove consentito, non accedere a proprietà private o aree aeroportuali e non sostare su carreggiate, piazzole non autorizzate o corsie di emergenza.</p>
+      <p>Il punto di ripresa è geometrico e non garantisce che l'aereo attraversi il disco. Rotta reale, pista in uso, velocità, salita, ritardi e vettoramenti ATC possono spostare il passaggio anche di chilometri. Verifica sempre il punto su mappa e sul posto; non accedere a proprietà private o aree aeroportuali e fermati soltanto dove consentito.</p>
     </section>
   </main>
 
   <footer>
     <p>100% gratuito · Nessuna API a pagamento · Calcolo geometrico nel browser</p>
-    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale · Accessibilità: © OpenStreetMap contributors / Overpass API · Distanze stradali: OSRM / OpenStreetMap</p>
+    <p class="credits">Piste: Trieste Airport / SEA + coordinate soglie aeronautiche pubbliche · Sole/Luna: Astronomy Engine · Orari: cache aeroportuale aggiornata automaticamente</p>
   </footer>
 
-  <script type="module" src="aircraft-v2.js"></script>
-  <script src="aircraft-feed-status.js" defer></script>
+  <script type="module" src="aircraft-simple.js"></script>
 </body>
 </html>
