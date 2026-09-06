@@ -67,7 +67,7 @@ function theoreticalSpot(airport,runway,flight,bodyKey,dKm){
   }
   let spot={lat:airport.lat,lon:airport.lon};
   let body=bodyHorizontal(bodyKey,eventTime,spot.lat,spot.lon,airport.elev);
-  const minAlt=bodyKey==='sun'?5:5;
+  const minAlt=5;
   if(body.alt<minAlt || body.alt>78 || (bodyKey==='moon'&&body.illum<10)) return null;
   for(let i=0;i<3;i++){
     const h=Math.max(20,planeAlt-airport.elev);
@@ -113,14 +113,13 @@ function dtText(d){return d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit
 function timeText(d){return d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}
 function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function mapsUrl(c){return `https://www.google.com/maps/search/?api=1&query=${c.spot.lat.toFixed(6)},${c.spot.lon.toFixed(6)}`}
-function dateStartLocal(){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate(),0,0,0,0)}
 
 function calculate(){
   if(!flightData) return;
   const code=$('airport').value,days=Number($('days').value),bodyFilter=$('bodyFilter').value,movement=$('movementFilter').value;
   const airport=AIRPORTS[code],bucket=flightData.airports?.[code];
   if(!bucket){return renderEmpty('Dati voli non disponibili per questo aeroporto.');}
-  const start=dateStartLocal(),end=new Date(start.getTime()+days*86400000);
+  const start=new Date(),end=new Date(start.getTime()+days*86400000);
   let flights=(bucket.flights||[]).filter(f=>{
     const t=new Date(f.expected_iso||f.scheduled_iso);
     return t>=start&&t<end&&(movement==='both'||f.movement===movement);
