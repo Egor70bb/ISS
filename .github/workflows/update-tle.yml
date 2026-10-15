@@ -45,14 +45,58 @@ jobs:
 
           mv data/iss.tle.new data/iss.tle
 
-      - name: Pubblica soltanto se i dati sono cambiati
+      - name: Pubblica il TLE senza conflitti con altri workflow
+        shell: bash
         run: |
-          if git diff --quiet -- data/iss.tle; then
-            echo "TLE già aggiornato oppure sorgente temporaneamente non disponibile"
-            exit 0
-          fi
+          set -euo pipefail
+
+          # Salva il TLE scaricato prima di riallinearsi al branch remoto.
+          candidate="$(mktemp)"
+          cp data/iss.tle "$candidate"
+          trap 'rm -f "$candidate"' EXIT
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/iss.tle
-          git commit -m "Aggiorna orbita ISS"
-          git push
+
+          for attempt in 1 2 3 4 5; do
+            # Il checkout qui è temporaneo: reset non modifica il repository remoto.
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Protegge un TLE remoto con epoca più recente del candidato.
+            python3 - "$candidate" data/iss.tle <<'PY'
+          import pathlib
+          import shutil
+          import sys
+
+          candidate, current = map(pathlib.Path, sys.argv[1:])
+          def epoch(path):
+              if not path.exists():
+                  return -1.0
+              for line in path.read_text().splitlines():
+                  if line.startswith("1 25544"):
+                      return float(line[18:32])
+              return -1.0
+
+          if epoch(candidate) > epoch(current):
+              shutil.copyfile(candidate, current)
+          PY
+
+            if git diff --quiet -- data/iss.tle; then
+              echo "TLE remoto già uguale o più recente; nessuna modifica necessaria."
+              exit 0
+            fi
+
+            git add data/iss.tle
+            git commit -m "Aggiorna orbita ISS"
+            if git push origin HEAD:main; then
+              echo "TLE pubblicato correttamente."
+              exit 0
+            fi
+
+            echo "::warning::Push concorrente (tentativo $attempt/5): riprovo."
+            sleep 2
+          done
+
+          echo "::warning::TLE valido conservato nel repository; riproverò al prossimo run."
+          exit 0
