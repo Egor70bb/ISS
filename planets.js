@@ -30,6 +30,61 @@ $('geoButton').addEventListener('click', () => {
   }, () => showMessage('Posizione non acquisita. Inserisci manualmente le coordinate.'));
 });
 
+const dwarfDialog = $('dwarfPlanetDialog');
+const dwarfContent = $('dwarfPlanetContent');
+const dwarfProfiles = {
+  Jupiter: {
+    goal: 'Disco molto piccolo e, nelle condizioni migliori, quattro lune galileiane come punti distinti.',
+    shutter: '1/125–1/500 s', gain: '0–30', filter: 'VIS', frame: '1080p · 60 fps',
+    priority: 'Evita di saturare il pianeta: riduci prima l’esposizione e poi il gain.',
+    steps: [
+      'Apri l’Atlante stellare e punta Giove; controlla la tenuta del tracking.',
+      'Se vuoi registrare le lune, prova anche esposizioni leggermente più lunghe: il disco di Giove potrebbe saturarsi.',
+      'Registra video brevi e verifica la messa a fuoco sul bordo del disco o su una stella vicina.'
+    ]
+  },
+  Venus: {
+    goal: 'Pianeta molto luminoso: prova a registrare un piccolo disco; la fase può risultare difficile da distinguere.',
+    shutter: '1/500–1/2000 s', gain: '0', filter: 'VIS', frame: '1080p · 60 fps',
+    priority: 'Usa tempi rapidi e gain minimo; interrompi se il disco è completamente bianco.',
+    steps: [
+      'Punta Venere solo se è abbastanza lontana dal Sole; evita qualsiasi spostamento in direzione del Sole.',
+      'Riduci il tempo di esposizione fino a contenere la luminosità del pianeta.',
+      'Controlla la messa a fuoco prima di registrare un video breve.'
+    ]
+  },
+  Mars: {
+    goal: 'Piccolo disco brillante; i dettagli superficiali sono generalmente fuori dalla risoluzione pratica del DWARF 3.',
+    shutter: '1/125–1/500 s', gain: '0–30', filter: 'VIS', frame: '1080p · 60 fps',
+    priority: 'Bilancia luminosità e definizione senza saturare il disco.',
+    steps: [
+      'Seleziona Marte nell’Atlante stellare e verifica il puntamento.',
+      'Parti dal gain basso e riduci l’esposizione se il disco è sovraesposto.',
+      'Registra clip brevi; confronta i fotogrammi per trovare quelli meno disturbati dalla turbolenza.'
+    ]
+  },
+  Saturn: {
+    goal: 'Pianeta molto piccolo: gli anelli possono essere solo debolmente suggeriti in condizioni favorevoli.',
+    shutter: '1/60–1/125 s', gain: '20–60', filter: 'VIS', frame: '1080p · 60 fps',
+    priority: 'Saturno è meno luminoso: aumenta prima con moderazione il gain, controllando il rumore.',
+    steps: [
+      'Punta Saturno dall’Atlante stellare e attendi che il tracking sia stabile.',
+      'Verifica che il pianeta sia visibile nel teleobiettivo; regola delicatamente il fuoco.',
+      'Prova più clip variando leggermente gain ed esposizione, evitando il sovraesposto.'
+    ]
+  }
+};
+
+$('planetCards').addEventListener('click', event => {
+  const button = event.target.closest('button[data-dwarf-planet]');
+  if (!button) return;
+  openDwarfPlanet(button.dataset.dwarfPlanet);
+});
+$('dwarfPlanetDone').addEventListener('click', () => dwarfDialog.close());
+dwarfDialog.addEventListener('click', event => {
+  if (event.target === dwarfDialog) dwarfDialog.close();
+});
+
 $('calculateButton').addEventListener('click', renderAll);
 $('todayButton').addEventListener('click', () => {
   dateInput.value = localDateString(new Date());
@@ -163,7 +218,9 @@ function planetCard(planet, day, obs){
   return `<article class="planet-card">
     <div class="planet-head">
       <h3>${planet.label}</h3>
-      <span class="planet-status ${useful.length ? 'good' : 'bad'}">${useful.length ? 'OSSERVABILE' : 'NESSUNA FINESTRA UTILE'}</span>
+      ${useful.length
+        ? `<button type="button" class="planet-status good planet-status-button" data-dwarf-planet="${planet.key}" aria-haspopup="dialog" aria-label="Apri le impostazioni DWARF 3 per ${planet.label}">OSSERVABILE <span aria-hidden="true">↗</span></button>`
+        : '<span class="planet-status bad">NESSUNA FINESTRA UTILE</span>'}
     </div>
     <div class="planet-metrics">
       <div class="planet-metric wide"><span>Sopra l’orizzonte (&gt;0°)</span><strong>${rangesText(above)}</strong></div>
@@ -173,6 +230,46 @@ function planetCard(planet, day, obs){
       <div class="planet-metric wide"><span>${event.title}</span><strong>${event.value}</strong><div class="planet-note">${event.note}</div></div>
     </div>
   </article>`;
+}
+
+function openDwarfPlanet(key){
+  const planet = planets.find(item => item.key === key);
+  const profile = dwarfProfiles[key];
+  const obs = readObserver();
+  const day = dateFromLocalString(dateInput.value);
+  if (!planet || !profile || !obs || !day) return;
+
+  const samples = sampleDay(planet.body, day, obs);
+  const useful = ranges(samples, 'useful');
+  const best = bestUseful(samples);
+  if (!useful.length || !best) return;
+
+  $('dwarfPlanetTitle').textContent = `${planet.label} · impostazioni DWARF 3`;
+  dwarfContent.innerHTML = `
+    <p id="dwarfPlanetIntro" class="dwarf-intro">Scheda per ${day.toLocaleDateString('it-IT', {day:'2-digit', month:'long', year:'numeric'})}. Le impostazioni sono indicative: non vengono trasferite automaticamente all’app DWARFLAB.</p>
+    <div class="dwarf-night-window">
+      <div><span>Finestra utile</span><strong>${rangesText(useful)}</strong></div>
+      <div><span>Ora consigliata</span><strong>${formatTime(best.time)}</strong></div>
+      <div><span>Altezza prevista</span><strong>${best.planetAlt.toFixed(1)}°</strong></div>
+    </div>
+    <p class="dwarf-target-goal"><strong>Risultato realistico:</strong> ${profile.goal}</p>
+    <h3 class="dwarf-subtitle">Configurazione iniziale suggerita</h3>
+    <div class="dwarf-planet-settings">
+      <div><span>Ottica</span><strong>Teleobiettivo · 150 mm</strong></div>
+      <div><span>Modalità</span><strong>Video</strong></div>
+      <div><span>Formato</span><strong>${profile.frame}</strong></div>
+      <div><span>Filtro interno</span><strong>${profile.filter}</strong></div>
+      <div><span>Esposizione iniziale</span><strong>${profile.shutter}</strong></div>
+      <div><span>Gain iniziale</span><strong>${profile.gain}</strong></div>
+      <div><span>Puntamento</span><strong>Atlante stellare</strong></div>
+      <div><span>Messa a fuoco</span><strong>Infinito + regolazione fine</strong></div>
+    </div>
+    <p class="dwarf-param-tip"><strong>Regolazione:</strong> ${profile.priority} Tempi e gain sono intervalli di prova, non valori ufficiali garantiti: le opzioni manuali effettivamente disponibili dipendono dalla modalità e dal firmware.</p>
+    <h3 class="dwarf-subtitle">Procedura per ${planet.label}</h3>
+    <ol class="dwarf-planet-steps">${profile.steps.map(step => `<li>${step}</li>`).join('')}</ol>
+    <div class="dwarf-night-warning"><strong>Attenzione:</strong> il DWARF 3 non è ottimizzato per l’alta risoluzione planetaria. Non utilizzare il filtro solare per i pianeti osservati di notte. In caso di osservazioni diurne, non puntare mai vicino al Sole senza le adeguate misure di sicurezza.</div>
+    <p class="dwarf-doc-link"><a href="https://help.dwarflab.com/en/docs/DWARF-3-Smart-Telescope-User-Manual-Part1-App-Interface-Introduction?product=dwarf-3" target="_blank" rel="noopener noreferrer">Manuale ufficiale DWARF 3 ↗</a></p>`;
+  dwarfDialog.showModal();
 }
 
 function calculate30Days(planet, startDay, obs){
